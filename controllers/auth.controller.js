@@ -5,37 +5,49 @@ const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 
 exports.signup = async (req, res) => {
+  const t = await db.sequelize.transaction();
+
   try {
     console.log(req.body);
 
+    const user = await User.create(
+      {
+        mosque_id: null,
+        username: req.body.username,
+        email: req.body.email,
+        password: bcrypt.hashSync(req.body.password, 8),
+        name: req.body.name,
+        role: req.body.role || "admin",
+        status: req.body.status || "active",
+      },
+      { transaction: t }
+    );
+
     let mosqueId = req.body.mosque_id;
 
-    if (!mosqueId && req.body.role === "admin") {
-      const mosque = await db.mosques.create({
-        name: req.body.mosque_name, 
-        address: req.body.mosque_address,
-        description: req.body.mosque_description || null, 
-        phone_whatsapp: req.body.mosque_phone_whatsapp || null, 
-        email: req.body.mosque_email || null, 
-        facebook: req.body.mosque_facebook || null, 
-        instagram: req.body.mosque_instagram || null, 
-      });
+    if (!mosqueId && user.role === "admin") {
+      const mosque = await db.mosques.create(
+        {
+          name: req.body.mosque_name,
+          address: req.body.mosque_address,
+          description: req.body.mosque_description || null,
+          phone_whatsapp: req.body.mosque_phone_whatsapp || null,
+          email: req.body.mosque_email || null,
+          facebook: req.body.mosque_facebook || null,
+          instagram: req.body.mosque_instagram || null,
+        },
+        { transaction: t }
+      );
 
       mosqueId = mosque.mosque_id;
+
+      await user.update({ mosque_id: mosqueId }, { transaction: t });
     }
 
-    const user = await User.create({
-      mosque_id: mosqueId,
-      username: req.body.username,
-      email: req.body.email,
-      password: bcrypt.hashSync(req.body.password, 8),
-      name: req.body.name,
-      role: req.body.role || "admin",
-      status: req.body.status || "active",
-    });
-
+    await t.commit();
     res.status(201).send({ message: "User registered successfully!" });
   } catch (error) {
+    await t.rollback();
     console.log(error);
     res.status(500).send({ message: error.message });
   }
