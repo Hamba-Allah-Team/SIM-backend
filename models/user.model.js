@@ -42,6 +42,14 @@ module.exports = (sequelize, Sequelize) => {
         type: Sequelize.ENUM("active", "inactive"),
         allowNull: false
       },
+      reset_password: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      reset_password_expiration: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       created_at: {
         type: Sequelize.DATE,
         defaultValue: Sequelize.NOW

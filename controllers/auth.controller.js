@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const validator = require("validator");
+const { sendMail } = require("../utils/sendMail");
 
 exports.signup = async (req, res) => {
   const t = await db.sequelize.transaction();
@@ -161,5 +162,54 @@ exports.logout = async (req, res) => {
     res.status(200).send({ message: "You have been logged out successfully." });
   } catch (error) {
     res.status(500).send({ message: error.message });
+  }
+};
+
+exports.sendResetPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).send({ message: "Email is required." });
+
+    const user = await db.user.findOne({ where: { email } });
+    if (!user) return res.status(404).send({ message: "User not found." });
+
+    const token = jwt.sign({ id: user.user_id }, process.env.JWT_SECRET, {
+      expiresIn: "15m",
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await sendMail({
+      to: user.email,
+      subject: "Reset Password - SIM Masjid",
+      html: `<p>Click the following link to reset your password:</p>
+             <a href="${resetLink}">${resetLink}</a><br/>
+             <p>This link will expire in 15 minutes.</p>`,
+    });
+
+    res.status(200).send({ message: "Reset password email sent successfully." });
+  } catch (err) {
+    res.status(500).send({ message: err.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).send({ message: "Token and new password are required." });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await db.user.findByPk(decoded.id);
+
+    if (!user) return res.status(404).send({ message: "User not found." });
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 8);
+    await user.update({ password: hashedPassword });
+
+    res.status(200).send({ message: "Password has been reset successfully." });
+  } catch (err) {
+    res.status(500).send({ message: "Invalid or expired token." });
   }
 };
