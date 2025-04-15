@@ -213,3 +213,39 @@ exports.resetPassword = async (req, res) => {
     res.status(500).send({ message: "Invalid or expired token." });
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).send({ message: "All fields are required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).send({ message: "New password must be at least 8 characters long." });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).send({ message: "New password and confirmation do not match." });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).send({ message: "User not found." });
+    }
+
+    const isMatch = bcrypt.compareSync(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).send({ message: "Current password is incorrect." });
+    }
+
+    user.password = bcrypt.hashSync(newPassword, 8);
+    await user.save();
+
+    res.status(200).send({ message: "Password updated successfully." });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};

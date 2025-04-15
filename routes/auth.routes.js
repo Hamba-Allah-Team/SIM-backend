@@ -19,4 +19,5 @@ module.exports = function (app) {
   // Reset password routes
   app.post("/api/auth/send-reset-password", controller.sendResetPassword);
   app.post("/api/auth/reset-password", controller.resetPassword);
+  app.post("/api/auth/change-password", verifyToken, controller.changePassword);
 };
