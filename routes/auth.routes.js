@@ -10,8 +10,14 @@ module.exports = function (app) {
     next();
   });
 
+  // Auth routes
   app.post("/api/auth/signup", controller.signup);
   app.post("/api/auth/signin", controller.signin);
   app.get("/api/auth/profile", verifyToken, controller.profile);
   app.post("/api/auth/logout", verifyToken, controller.logout);
+
+  // Reset password routes
+  app.post("/api/auth/send-reset-password", controller.sendResetPassword);
+  app.post("/api/auth/reset-password", controller.resetPassword);
+  app.post("/api/auth/change-password", verifyToken, controller.changePassword);
 };
