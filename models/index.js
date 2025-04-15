@@ -23,6 +23,12 @@ db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
 db.mosques = require("./mosque.model.js")(sequelize, Sequelize);
-db.user = require('./user.model.js')(sequelize, Sequelize);
+db.user = require("./user.model.js")(sequelize, Sequelize);
+
+Object.keys(db).forEach((modelName) => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
 
 module.exports = db;

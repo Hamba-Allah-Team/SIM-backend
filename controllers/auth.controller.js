@@ -3,44 +3,67 @@ const User = db.user;
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
+const validator = require("validator");
 
 exports.signup = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
-    console.log(req.body);
+    const { username, email, password, name, role, status, mosque_name, mosque_address, mosque_description, mosque_phone_whatsapp, mosque_email, mosque_facebook, mosque_instagram } = req.body;
 
+    // Validasi input wajib
+    if (!username || !email || !password || !name) {
+      return res.status(400).send({ message: "All required fields must be filled." });
+    }
+
+    // Validasi format email
+    if (!validator.isEmail(email)) {
+      return res.status(400).send({ message: "Invalid email format." });
+    }
+
+    // Validasi panjang password (minimal 8 karakter)
+    if (password.length < 8) {
+      return res.status(400).send({ message: "Password must be at least 8 characters long." });
+    }
+
+    // Cek apakah email sudah terdaftar
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(409).send({ message: "Email already registered." });
+    }
+
+    // Buat user baru
     const user = await User.create(
       {
         mosque_id: null,
-        username: req.body.username,
-        email: req.body.email,
-        password: bcrypt.hashSync(req.body.password, 8),
-        name: req.body.name,
-        role: req.body.role || "admin",
-        status: req.body.status || "active",
+        username,
+        email,
+        password: bcrypt.hashSync(password, 8),
+        name,
+        role: role || "admin",
+        status: status || "active",
       },
       { transaction: t }
     );
 
     let mosqueId = req.body.mosque_id;
 
+    // Jika user adalah admin buat masjid baru
     if (!mosqueId && user.role === "admin") {
       const mosque = await db.mosques.create(
         {
-          name: req.body.mosque_name,
-          address: req.body.mosque_address,
-          description: req.body.mosque_description || null,
-          phone_whatsapp: req.body.mosque_phone_whatsapp || null,
-          email: req.body.mosque_email || null,
-          facebook: req.body.mosque_facebook || null,
-          instagram: req.body.mosque_instagram || null,
+          name: mosque_name,
+          address: mosque_address,
+          description: mosque_description || null,
+          phone_whatsapp: mosque_phone_whatsapp || null,
+          email: mosque_email || null,
+          facebook: mosque_facebook || null,
+          instagram: mosque_instagram || null,
         },
         { transaction: t }
       );
 
       mosqueId = mosque.mosque_id;
-
       await user.update({ mosque_id: mosqueId }, { transaction: t });
     }
 
@@ -48,7 +71,6 @@ exports.signup = async (req, res) => {
     res.status(201).send({ message: "User registered successfully!" });
   } catch (error) {
     await t.rollback();
-    console.log(error);
     res.status(500).send({ message: error.message });
   }
 };
@@ -57,10 +79,9 @@ exports.signin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validasi input
     if (!email || !password) {
-      return res
-        .status(400)
-        .send({ message: "Email and password are required." });
+      return res.status(400).send({ message: "Email and password are required." });
     }
 
     const user = await User.findOne({ where: { email } });
@@ -69,8 +90,8 @@ exports.signin = async (req, res) => {
       return res.status(404).send({ message: "User not found." });
     }
 
+    // Verifikasi password
     const passwordIsValid = bcrypt.compareSync(password, user.password);
-
     if (!passwordIsValid) {
       return res.status(401).send({
         accessToken: null,
@@ -78,15 +99,33 @@ exports.signin = async (req, res) => {
       });
     }
 
+    // Cek status akun
+    if (user.role === "admin" && user.status === "inactive") {
+      return res.status(403).send({
+        accessToken: null,
+        message: "Your account is inactive. Please contact the administrator.",
+      });
+    }
+
+    // Generate JWT token
     const token = jwt.sign({ id: user.user_id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRATION,
+    });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", 
+      sameSite: "Strict",
+      maxAge: 3600000, // 1 hour
     });
 
     res.status(200).send({
       id: user.user_id,
       username: user.username,
       email: user.email,
-      accessToken: token,
+      message: "Login successful",
+      token: token,
+      role: user.role,
     });
   } catch (error) {
     res.status(500).send({ message: error.message });
@@ -96,7 +135,14 @@ exports.signin = async (req, res) => {
 exports.profile = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
-      attributes: ["user_id", "username", "email"],
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: db.mosques,
+          as: "mosque",
+          attributes: { exclude: ["createdAt", "updatedAt"] }
+        }
+      ]
     });
 
     if (!user) {
@@ -111,6 +157,7 @@ exports.profile = async (req, res) => {
 
 exports.logout = async (req, res) => {
   try {
+    res.clearCookie("token");
     res.status(200).send({ message: "You have been logged out successfully." });
   } catch (error) {
     res.status(500).send({ message: error.message });

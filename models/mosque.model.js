@@ -50,7 +50,14 @@ module.exports = (sequelize, Sequelize) => {
         createdAt: 'created_at', 
         updatedAt: 'updated_at' 
       });
-  
+
+      Mosque.associate = (models) => {
+        Mosque.hasMany(models.user, {
+          foreignKey: "mosque_id",
+          as: "users"
+        });
+      };
+      
     return Mosque;
   };
   
