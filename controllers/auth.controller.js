@@ -32,6 +32,10 @@ exports.signup = async (req, res) => {
     if (existingUser) {
       return res.status(409).send({ message: "Email already registered." });
     }
+    
+    // Tentukan tanggal expired
+    const expiredAt = new Date();
+    expiredAt.setDate(expiredAt.getDate() + 30);
 
     // Buat user baru
     const user = await User.create(
@@ -43,6 +47,7 @@ exports.signup = async (req, res) => {
         name,
         role: role || "admin",
         status: status || "active",
+        expired_at: expiredAt, 
       },
       { transaction: t }
     );
@@ -89,6 +94,13 @@ exports.signin = async (req, res) => {
 
     if (!user) {
       return res.status(404).send({ message: "User not found." });
+    }
+
+    if (user.deleted_at) {
+      return res.status(403).send({
+        accessToken: null,
+        message: "Your account has been deactivated. Please contact the administrator.",
+      });
     }
 
     // Verifikasi password
