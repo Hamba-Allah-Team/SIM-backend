@@ -1,5 +1,8 @@
-.env 
-example PORT=3000
+## Project Architecture <br>
+![alt text](/pictures/diagram.png)
+
+## .env example <br>
+PORT=3000
 
 <br>PGHOST=localhost
 <br>PGUSER=your_postgres_user
