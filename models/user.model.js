@@ -57,7 +57,15 @@ module.exports = (sequelize, Sequelize) => {
       updated_at: {
         type: Sequelize.DATE,
         defaultValue: Sequelize.NOW
-      }
+      },
+      expired_at: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      }, 
+      deleted_at: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
     }, {
       timestamps: false,
       underscored: true
