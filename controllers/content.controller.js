@@ -204,3 +204,68 @@ exports.getContentById = async (req, res) => {
     res.status(500).send({ message: "Terjadi kesalahan saat mengambil artikel." });
   }
 };
+
+// GET all contents by mosque_id (untuk guest)
+exports.getPublicContents = async (req, res) => {
+  try {
+    const { mosque_id } = req.params;
+    const { page = 1, limit = 10, search = "", sortBy = "published_date", order = "ASC" } = req.query;
+
+    const contents = await Content.findAndCountAll({
+      where: {
+        mosque_id,
+        [Op.or]: [
+          {
+            title: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+          {
+            content_description: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+        ],
+      },
+      order: [[sortBy, order]],
+      limit: parseInt(limit),
+      offset: (page - 1) * limit,
+    });
+
+    res.status(200).send({
+      data: contents.rows,
+      totalCount: contents.count,
+      totalPages: Math.ceil(contents.count / limit),
+      currentPage: parseInt(page),
+    });
+  } catch (err) {
+    console.error("Error mengambil artikel publik:", err);
+    res.status(500).send({ message: "Gagal mengambil artikel publik." });
+  }
+};
+
+// GET single content by ID (untuk guest)
+exports.getPublicContentById = async (req, res) => {
+  try {
+    const { id, mosque_id } = req.params;
+
+    const article = await Content.findOne({
+      where: {
+        contents_id: id,
+        mosque_id,
+      },
+    });
+
+    if (!article) {
+      return res.status(404).send({ message: "Artikel tidak ditemukan." });
+    }
+
+    res.status(200).send({
+      message: "Artikel ditemukan.",
+      data: article,
+    });
+  } catch (err) {
+    console.error("Error mengambil artikel publik:", err);
+    res.status(500).send({ message: "Gagal mengambil artikel publik." });
+  }
+};
