@@ -2,6 +2,14 @@ const db = require("../models");
 const Content = db.contents;
 const { Op } = require("sequelize");
 
+// Validasi format gambar
+const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg']; // Format gambar yang diterima
+
+// Fungsi untuk validasi ekstensi gambar
+const isValidImage = (image) => {
+  return validImageTypes.includes(image.mimetype); // Memeriksa apakah tipe file gambar sesuai dengan yang diizinkan
+};
+
 // CREATE a new content
 exports.createContent = async (req, res) => {
   try {
@@ -19,6 +27,13 @@ exports.createContent = async (req, res) => {
     // Cek apakah semua data yang dibutuhkan sudah ada
     if (!title || !published_date || !contents_type) {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
+    }
+
+    // Validasi format gambar menggunakan if-else
+    if (image) {
+      if (!isValidImage(image)) {
+         return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
+      }
     }
 
     const content = await Content.create({
@@ -69,6 +84,13 @@ exports.updateContent = async (req, res) => {
     // Pastikan artikel ini milik masjid yang sesuai dengan user yang login
     if (article.mosque_id !== mosque_id) {
       return res.status(403).send({ message: "Anda tidak memiliki izin untuk mengedit artikel ini." });
+    }
+
+    // Validasi format gambar menggunakan if-else
+    if (image) {
+      if (!isValidImage(image)) {
+        return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
+      }
     }
 
     await article.update({
