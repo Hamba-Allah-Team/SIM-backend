@@ -2,6 +2,8 @@ const { verifyToken } = require("../middleware/auth.middleware");
 const { checkSoftDelete } = require("../middleware/checkSoftDelete.middleware")
 const authController = require("../controllers/auth.controller");
 const userController = require("../controllers/users.controller");
+const walletsController = require("../controllers/wallets.controller");
+const financesController = require("../controllers/finances.controller");
 
 module.exports = function (app) {
   app.use(function (req, res, next) {
@@ -27,4 +29,12 @@ module.exports = function (app) {
   app.get("/api/users", verifyToken, userController.getUsers);
   app.put("/api/users/:id", verifyToken, checkSoftDelete, userController.updateUser);
   app.delete("/api/users/:id", verifyToken, checkSoftDelete, userController.softDeleteUser);
+
+  // Wallet routes
+  app.post("/api/wallets", verifyToken, walletsController.createWallet);
+  app.get("/api/wallets", verifyToken, walletsController.getAllWallets);
+  app.get("/api/wallets/:id", verifyToken, walletsController.getWalletById);
+  app.put("/api/wallets/:id", verifyToken, walletsController.updateWallet);
+  app.delete("/api/wallets/:id", verifyToken, walletsController.deleteWallet);
+
 };
