@@ -37,4 +37,10 @@ module.exports = function (app) {
   app.put("/api/wallets/:id", verifyToken, walletsController.updateWallet);
   app.delete("/api/wallets/:id", verifyToken, walletsController.deleteWallet);
 
+  // Wallet Transaction routes
+  app.post("/api/wallet-transactions", verifyToken, financesController.createTransaction);
+  app.get("/api/wallet-transactions", verifyToken, financesController.getAllTransactions);
+  app.get("/api/wallet-transactions/:id", verifyToken, financesController.getTransactionById);
+  app.put("/api/wallet-transactions/:id", verifyToken, financesController.updateTransaction);
+  app.delete("/api/wallet-transactions/:id", verifyToken, financesController.deleteTransaction);
 };
