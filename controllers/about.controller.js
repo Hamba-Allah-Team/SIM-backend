@@ -87,7 +87,7 @@ exports.updateAbout = async (req, res) => {
       }
     }
 
-    const mosque = await db.mosque.findByPk(mosque_id);
+    const mosque = await db.mosques.findByPk(mosque_id);
     if (!mosque) {
       return res.status(404).send({ message: "Data masjid tidak ditemukan." });
     }
@@ -115,7 +115,7 @@ exports.getAboutByMosqueId = async (req, res) => {
   try {
     const { mosque_id } = req.params;
 
-    const mosque = await db.mosque.findByPk(mosque_id, {
+    const mosque = await db.mosques.findByPk(mosque_id, {
       attributes: [
         'mosque_id',
         'name',
