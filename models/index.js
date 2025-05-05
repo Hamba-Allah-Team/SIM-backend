@@ -24,6 +24,8 @@ db.sequelize = sequelize;
 
 db.mosques = require("./mosque.model.js")(sequelize, Sequelize);
 db.user = require("./user.model.js")(sequelize, Sequelize);
+db.wallets = require("./wallet.model.js")(sequelize, Sequelize);
+db.finances = require("./finances.model.js")(sequelize, Sequelize);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
