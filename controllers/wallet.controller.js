@@ -1,5 +1,5 @@
 const db = require("../models");
-const Wallet = db.wallets;
+const Wallet = db.wallet;
 
 // 📥 CREATE wallet
 exports.createWallet = async (req, res) => {

@@ -28,7 +28,7 @@ module.exports = (sequelize, Sequelize) => {
     });
 
     Wallet.associate = (models) => {
-        Wallet.hasMany(models.finances, {
+        Wallet.hasMany(models.wallet_transaction, {
             foreignKey: "wallet_id",
             as: "transactions"
         });
