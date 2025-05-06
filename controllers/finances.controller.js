@@ -1,5 +1,5 @@
 const db = require("../models");
-const Finances = db.finances;
+const Finances = db.wallet_transaction;
 
 exports.createTransaction = async (req, res) => {
     try {
