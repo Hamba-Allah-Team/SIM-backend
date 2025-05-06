@@ -1,0 +1,23 @@
+// Migration: Wallet_Transactions Table
+'use strict';
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.createTable('wallet_transactions', {
+      transaction_id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
+      wallet_id: { type: Sequelize.INTEGER, references: { model: 'wallets', key: 'wallet_id' } },
+      amount: Sequelize.DECIMAL,
+      transaction_type: { type: 'transaction_type_enum', allowNull: false },
+      source_or_usage: Sequelize.TEXT,
+      transaction_date: Sequelize.DATE,
+      balance: Sequelize.DECIMAL,
+      user_id: { type: Sequelize.INTEGER, references: { model: 'users', key: 'user_id' } },
+      created_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') },
+      updated_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') }
+    });
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.dropTable('wallet_transactions');
+  }
+};
