@@ -1,5 +1,5 @@
 module.exports = (sequelize, Sequelize) => {
-    const Finances = sequelize.define("finances", {
+    const WalletTransaction = sequelize.define("wallet_transactions", {
         transaction_id: {
             type: Sequelize.INTEGER,
             primaryKey: true,
@@ -47,16 +47,16 @@ module.exports = (sequelize, Sequelize) => {
         updatedAt: "updated_at"
     });
 
-    Finances.associate = (models) => {
-        Finances.belongsTo(models.wallets, {
+    WalletTransaction.associate = (models) => {
+        WalletTransaction.belongsTo(models.wallet, {
             foreignKey: "wallet_id",
             as: "wallet"
         });
-        Finances.belongsTo(models.user, {
+        WalletTransaction.belongsTo(models.user, {
             foreignKey: "user_id",
             as: "user"
         });
     };
 
-    return Finances;
+    return WalletTransaction;
 };
