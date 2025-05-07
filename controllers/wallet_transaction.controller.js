@@ -13,23 +13,29 @@ exports.createTransaction = async (req, res) => {
 
         const user_id = req.userId;
 
+        // Validasi amount
+        const amountNumber = Number(amount);
+        if (isNaN(amountNumber) || amountNumber <= 0) {
+            return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
+        }
+
         // Ambil transaksi terakhir dari wallet ini untuk mendapatkan saldo terakhir
         const lastTransaction = await WalletTransactions.findOne({
             where: { wallet_id },
             order: [['transaction_date', 'DESC']] // atau ['createdAt', 'DESC'] jika pakai createdAt
         });
 
-        let currentBalance = lastTransaction ? lastTransaction.balance : 0;
+        let currentBalance = lastTransaction ? Number(lastTransaction.balance) : 0;
         let newBalance;
 
         // Hitung balance baru berdasarkan tipe transaksi
         if (transaction_type === "income") {
-            newBalance = currentBalance + amount;
+            newBalance = currentBalance + amountNumber;
         } else if (transaction_type === "expense") {
-            if (amount > currentBalance) {
+            if (amountNumber > currentBalance) {
                 return res.status(400).json({ message: "Insufficient balance for expense transaction." });
             }
-            newBalance = currentBalance - amount;
+            newBalance = currentBalance - amountNumber;
         } else {
             return res.status(400).json({ message: "Invalid transaction_type. Use 'income' or 'expense'." });
         }
@@ -37,7 +43,7 @@ exports.createTransaction = async (req, res) => {
         // Simpan transaksi baru
         const transaction = await WalletTransactions.create({
             wallet_id,
-            amount,
+            amount: amountNumber,
             transaction_type,
             source_or_usage,
             transaction_date,
