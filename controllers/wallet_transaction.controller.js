@@ -105,7 +105,7 @@ exports.updateTransaction = async (req, res) => {
 
 exports.deleteTransaction = async (req, res) => {
     try {
-        const id = req.params.id;
+        const id = req.params.transactionId;
         const deleted = await WalletTransactions.destroy({ where: { transaction_id: id } });
 
         if (!deleted) {
