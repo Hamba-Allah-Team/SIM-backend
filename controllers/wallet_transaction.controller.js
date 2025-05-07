@@ -3,8 +3,8 @@ const WalletTransactions = db.wallet_transaction; // pastikan model ini sudah di
 
 exports.createTransaction = async (req, res) => {
     try {
+        const wallet_id = parseInt(req.params.walletId); // ✅ ambil dari URL
         const {
-            wallet_id,
             amount,
             transaction_type,
             source_or_usage,
