@@ -1,5 +1,5 @@
 const db = require("../models");
-const Finances = db.wallet_transaction;
+const WalletTransactions = db.wallet_transaction; // pastikan model ini sudah didefinisikan di models/index.js
 
 exports.createTransaction = async (req, res) => {
     try {
@@ -13,7 +13,7 @@ exports.createTransaction = async (req, res) => {
             user_id
         } = req.body;
 
-        const transaction = await Finances.create({
+        const transaction = await WalletTransactions.create({
             wallet_id,
             amount,
             transaction_type,
@@ -32,7 +32,7 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        const transactions = await Finances.findAll();
+        const transactions = await WalletTransactions.findAll();
         res.json(transactions);
     } catch (error) {
         console.error("Error fetching transactions:", error);
@@ -43,7 +43,7 @@ exports.getAllTransactions = async (req, res) => {
 exports.getTransactionById = async (req, res) => {
     try {
         const id = req.params.id;
-        const transaction = await Finances.findByPk(id);
+        const transaction = await WalletTransactions.findByPk(id);
 
         if (!transaction) {
             return res.status(404).json({ message: "Transaction not found" });
@@ -60,7 +60,7 @@ exports.updateTransaction = async (req, res) => {
     try {
         const id = req.params.id;
 
-        const [updated] = await Finances.update(req.body, {
+        const [updated] = await WalletTransactions.update(req.body, {
             where: { transaction_id: id }
         });
 
@@ -78,7 +78,7 @@ exports.updateTransaction = async (req, res) => {
 exports.deleteTransaction = async (req, res) => {
     try {
         const id = req.params.id;
-        const deleted = await Finances.destroy({ where: { transaction_id: id } });
+        const deleted = await WalletTransactions.destroy({ where: { transaction_id: id } });
 
         if (!deleted) {
             return res.status(404).json({ message: "Transaction not found" });
