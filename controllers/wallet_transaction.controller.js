@@ -8,18 +8,40 @@ exports.createTransaction = async (req, res) => {
             amount,
             transaction_type,
             source_or_usage,
-            transaction_date,
-            balance,
-            user_id
+            transaction_date
         } = req.body;
 
+        const user_id = req.userId;
+
+        // Ambil transaksi terakhir dari wallet ini untuk mendapatkan saldo terakhir
+        const lastTransaction = await WalletTransactions.findOne({
+            where: { wallet_id },
+            order: [['transaction_date', 'DESC']] // atau ['createdAt', 'DESC'] jika pakai createdAt
+        });
+
+        let currentBalance = lastTransaction ? lastTransaction.balance : 0;
+        let newBalance;
+
+        // Hitung balance baru berdasarkan tipe transaksi
+        if (transaction_type === "income") {
+            newBalance = currentBalance + amount;
+        } else if (transaction_type === "expense") {
+            if (amount > currentBalance) {
+                return res.status(400).json({ message: "Insufficient balance for expense transaction." });
+            }
+            newBalance = currentBalance - amount;
+        } else {
+            return res.status(400).json({ message: "Invalid transaction_type. Use 'income' or 'expense'." });
+        }
+
+        // Simpan transaksi baru
         const transaction = await WalletTransactions.create({
             wallet_id,
             amount,
             transaction_type,
             source_or_usage,
             transaction_date,
-            balance,
+            balance: newBalance,
             user_id
         });
 
