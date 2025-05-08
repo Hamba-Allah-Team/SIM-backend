@@ -1,4 +1,5 @@
 const db = require("../models");
+const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction; // pastikan model ini sudah didefinisikan di models/index.js
 
 exports.createTransaction = async (req, res) => {
@@ -70,7 +71,7 @@ exports.getAllTransactions = async (req, res) => {
 
 exports.getTransactionById = async (req, res) => {
     try {
-        const id = req.params.id;
+        const id = req.params.transactionId;
         const transaction = await WalletTransactions.findByPk(id);
 
         if (!transaction) {
@@ -86,17 +87,107 @@ exports.getTransactionById = async (req, res) => {
 
 exports.updateTransaction = async (req, res) => {
     try {
-        const id = req.params.id;
+        const id = req.params.transactionId;
+        const { amount, transaction_type, transaction_date, source_or_usage } = req.body;
 
-        const [updated] = await WalletTransactions.update(req.body, {
-            where: { transaction_id: id }
-        });
+        const transaction = await WalletTransactions.findByPk(id);
 
-        if (updated === 0) {
+        if (!transaction) {
             return res.status(404).json({ message: "Transaction not found" });
         }
 
-        res.json({ message: "Transaction updated successfully" });
+        const wallet_id = transaction.wallet_id;
+
+        // Ambil transaksi sebelumnya untuk mendapatkan saldo dasar
+        const previousTransaction = await WalletTransactions.findOne({
+            where: {
+                wallet_id,
+                [Op.or]: [
+                    {
+                        transaction_date: { [Op.lt]: transaction_date }
+                    },
+                    {
+                        transaction_date: transaction_date,
+                        transaction_id: { [Op.lt]: id }
+                    }
+                ],
+                transaction_id: { [Op.ne]: id }
+            },
+            order: [['transaction_date', 'DESC'], ['transaction_id', 'DESC']]
+        });
+
+        const baseBalance = previousTransaction ? Number(previousTransaction.balance) : 0;
+        const numericAmount = Number(amount);
+
+        // Hitung saldo baru
+        let newBalance;
+        if (transaction_type === "income") {
+            newBalance = baseBalance + numericAmount;
+        } else if (transaction_type === "expense") {
+            if (numericAmount > baseBalance) {
+                return res.status(400).json({ message: "Insufficient balance for expense transaction." });
+            }
+            newBalance = baseBalance - numericAmount;
+        } else {
+            return res.status(400).json({ message: "Invalid transaction_type." });
+        }
+
+        // Update transaksi utama
+        await WalletTransactions.update(
+            {
+                amount,
+                transaction_type,
+                transaction_date,
+                source_or_usage,
+                balance: newBalance
+            },
+            {
+                where: { transaction_id: id }
+            }
+        );
+
+        // Ambil kembali transaksi yang telah diupdate
+        const updatedTransaction = await WalletTransactions.findByPk(id);
+
+        // Ambil semua transaksi setelahnya untuk diperbarui
+        const followingTransactions = await WalletTransactions.findAll({
+            where: {
+                wallet_id,
+                [Op.or]: [
+                    {
+                        transaction_date: { [Op.gt]: updatedTransaction.transaction_date }
+                    },
+                    {
+                        transaction_date: updatedTransaction.transaction_date,
+                        transaction_id: { [Op.gt]: updatedTransaction.transaction_id }
+                    }
+                ]
+            },
+            order: [['transaction_date', 'ASC'], ['transaction_id', 'ASC']]
+        });
+
+        let runningBalance = Number(updatedTransaction.balance);
+
+        // Update transaksi berikutnya satu per satu
+        for (const tx of followingTransactions) {
+            const txAmount = Number(tx.amount);
+            let updatedBalance;
+
+            if (tx.transaction_type === "income") {
+                updatedBalance = runningBalance + txAmount;
+            } else if (tx.transaction_type === "expense") {
+                updatedBalance = runningBalance - txAmount;
+            }
+
+            await WalletTransactions.update(
+                { balance: updatedBalance },
+                { where: { transaction_id: tx.transaction_id } }
+            );
+
+            runningBalance = updatedBalance;
+        }
+
+        res.json({ message: "Transaction and balances updated successfully" });
     } catch (error) {
         console.error("Error updating transaction:", error);
         res.status(500).json({ message: "Failed to update transaction" });
