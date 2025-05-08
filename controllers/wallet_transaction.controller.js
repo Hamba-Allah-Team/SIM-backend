@@ -1,6 +1,7 @@
 const db = require("../models");
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 const WalletTransactions = db.wallet_transaction; // pastikan model ini sudah didefinisikan di models/index.js
+const Wallets = db.wallet; // pastikan model ini sudah didefinisikan di models/index.js
 
 exports.createTransaction = async (req, res) => {
     try {
@@ -207,5 +208,64 @@ exports.deleteTransaction = async (req, res) => {
     } catch (error) {
         console.error("Error deleting transaction:", error);
         res.status(500).json({ message: "Failed to delete transaction" });
+    }
+};
+
+exports.getWalletWithBalance = async (req, res) => {
+    try {
+        const walletId = req.params.walletId;
+
+        // Cari wallet berdasarkan ID
+        const wallet = await Wallets.findByPk(walletId);
+
+        if (!wallet) {
+            return res.status(404).json({ message: "Wallet not found" });
+        }
+
+        // Cari transaksi terakhir berdasarkan tanggal transaksi
+        const lastTransaction = await WalletTransactions.findOne({
+            where: { wallet_id: walletId },
+            order: [['transaction_date', 'DESC']]
+        });
+
+        const balance = lastTransaction ? lastTransaction.balance : 0;
+
+        res.json({
+            wallet_id: wallet.wallet_id,
+            wallet_name: wallet.wallet_name,
+            description: wallet.description,
+            balance: parseFloat(balance)
+        });
+    } catch (error) {
+        console.error("Error fetching wallet with balance:", error);
+        res.status(500).json({ message: "Failed to retrieve wallet balance" });
+    }
+};
+
+exports.getAllWalletsWithBalance = async (req, res) => {
+    try {
+        // Ambil semua wallet
+        const wallets = await Wallets.findAll();
+
+        // Untuk setiap wallet, hitung saldo akhir
+        const result = await Promise.all(wallets.map(async (wallet) => {
+            const latestTransaction = await WalletTransactions.findOne({
+                where: { wallet_id: wallet.wallet_id },
+                order: [['transaction_date', 'DESC']],
+                attributes: ['balance']
+            });
+
+            return {
+                wallet_id: wallet.wallet_id,
+                name: wallet.name,
+                description: wallet.description,
+                balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
+            };
+        }));
+
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching wallets with balances:", error);
+        res.status(500).json({ message: "Failed to fetch wallets with balances" });
     }
 };
