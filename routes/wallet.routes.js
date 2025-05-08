@@ -24,4 +24,8 @@ module.exports = function (app) {
     app.get("/api/wallets/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.getTransactionById);
     app.put("/api/wallets/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.updateTransaction);
     app.delete("/api/wallets/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.deleteTransaction);
+
+    app.get('/api/wallets/:walletId/balance', verifyToken, walletTransactionController.getWalletWithBalance);
+    app.get("/api/wallets-balances", verifyToken, walletTransactionController.getAllWalletsWithBalance);
+
 };
