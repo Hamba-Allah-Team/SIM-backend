@@ -269,3 +269,34 @@ exports.getAllWalletsWithBalance = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch wallets with balances" });
     }
 };
+
+exports.getWalletsByMosqueWithBalance = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosqueId;
+
+        // Ambil semua wallet milik mosque tertentu
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosqueId }
+        });
+
+        const result = await Promise.all(wallets.map(async (wallet) => {
+            const latestTransaction = await WalletTransactions.findOne({
+                where: { wallet_id: wallet.wallet_id },
+                order: [['transaction_date', 'DESC']],
+                attributes: ['balance']
+            });
+
+            return {
+                wallet_id: wallet.wallet_id,
+                mosque_id: wallet.mosque_id,
+                wallet_type: wallet.wallet_type,
+                balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
+            };
+        }));
+
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching wallets by mosque with balances:", error);
+        res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
+    }
+};

@@ -27,5 +27,5 @@ module.exports = function (app) {
 
     app.get('/api/wallets/:walletId/balance', verifyToken, walletTransactionController.getWalletWithBalance);
     app.get("/api/wallets-balances", verifyToken, walletTransactionController.getAllWalletsWithBalance);
-
+    app.get("/api/wallets/mosque/:mosqueId", verifyToken, walletTransactionController.getWalletsByMosqueWithBalance);
 };
