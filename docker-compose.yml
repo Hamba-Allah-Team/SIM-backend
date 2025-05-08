@@ -1,0 +1,53 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:13
+    container_name: postgres_container
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
+    networks:
+      - backend
+
+  web:
+    build: .
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${PGUSER}:${PGPASSWORD}@db:${PGPORT}/${PGDATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      FRONTEND_URL: ${FRONTEND_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      #- ./nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-app.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge

@@ -12,6 +12,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 require("./routes/auth.routes")(app);
+require("./routes/content.routes")(app);
+require("./routes/about.routes")(app);
+require("./routes/wallet.routes")(app);
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
