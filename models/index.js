@@ -27,6 +27,7 @@ db.user = require("./user.model.js")(sequelize, Sequelize);
 db.wallet = require("./wallet.model.js")(sequelize, Sequelize);
 db.wallet_transaction = require("./wallet_transaction.model.js")(sequelize, Sequelize);
 db.contents = require("./content.model.js")(sequelize, Sequelize);
+db.activity = require("./activity.model.js")(sequelize, Sequelize);
 
 
 Object.keys(db).forEach((modelName) => {
