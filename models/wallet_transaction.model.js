@@ -7,7 +7,12 @@ module.exports = (sequelize, Sequelize) => {
         },
         wallet_id: {
             type: Sequelize.INTEGER,
-            allowNull: false
+            allowNull: false,
+            references: {
+                model: 'wallets',
+                key: 'wallet_id'
+            },
+            onDelete: 'CASCADE'
         },
         amount: {
             type: Sequelize.DECIMAL,
@@ -22,16 +27,21 @@ module.exports = (sequelize, Sequelize) => {
             allowNull: true
         },
         transaction_date: {
-            type: Sequelize.DATEONLY,
+            type: Sequelize.DATE, // Sequelize.DATE supports timezone by default
             allowNull: false
         },
         balance: {
             type: Sequelize.DECIMAL,
-            allowNull: true
+            allowNull: false
         },
         user_id: {
             type: Sequelize.INTEGER,
-            allowNull: true
+            allowNull: true,
+            references: {
+                model: 'users',
+                key: 'user_id'
+            },
+            onDelete: 'SET NULL'
         },
         created_at: {
             type: Sequelize.DATE,
@@ -44,7 +54,8 @@ module.exports = (sequelize, Sequelize) => {
     }, {
         timestamps: true,
         createdAt: "created_at",
-        updatedAt: "updated_at"
+        updatedAt: "updated_at",
+        underscored: true // optional: agar otomatis pakai snake_case untuk semua kolom
     });
 
     WalletTransaction.associate = (models) => {
