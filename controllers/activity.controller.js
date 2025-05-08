@@ -104,3 +104,47 @@ exports.deleteActivity = async (req, res) => {
         res.status(500).json({ message: "Failed to delete activity" });
     }
 };
+
+exports.getPublicActivities = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosque_id;
+
+        const activities = await Activity.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: {
+                exclude: ['created_at', 'updated_at'] // atau sesuaikan jika ingin tampilkan semua
+            },
+            order: [['start_date', 'ASC']]
+        });
+
+        res.json(activities);
+    } catch (error) {
+        console.error("Error fetching public activities:", error);
+        res.status(500).json({ message: "Failed to retrieve public activities" });
+    }
+};
+
+exports.getPublicActivityById = async (req, res) => {
+    try {
+        const { mosque_id, id } = req.params;
+
+        const activity = await Activity.findOne({
+            where: {
+                mosque_id,
+                activities_id: id
+            },
+            attributes: {
+                exclude: ['created_at', 'updated_at']
+            }
+        });
+
+        if (!activity) {
+            return res.status(404).json({ message: "Activity not found" });
+        }
+
+        res.json(activity);
+    } catch (error) {
+        console.error("Error fetching public activity by ID:", error);
+        res.status(500).json({ message: "Failed to retrieve activity detail" });
+    }
+};
