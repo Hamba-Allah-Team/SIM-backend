@@ -1,5 +1,5 @@
 const { verifyToken } = require("../middleware/auth.middleware");
-const activityController = require("../controllers/activityController");
+const activityController = require("../controllers/activity.controller");
 
 module.exports = function (app) {
     app.use(function (req, res, next) {
@@ -12,7 +12,7 @@ module.exports = function (app) {
 
     // 📌 Admin Activity routes (dengan autentikasi)
     app.post("/api/activities", verifyToken, activityController.createActivity); // Tambah kegiatan
-    app.get("/api/activities", verifyToken, activityController.getAllActivities); // Semua kegiatan
+    app.get("/api/activities", verifyToken, activityController.getActivities); // Semua kegiatan
     app.get("/api/activities/:id", verifyToken, activityController.getActivityById); // Detail kegiatan
     app.put("/api/activities/:id", verifyToken, activityController.updateActivity); // Update kegiatan
     app.delete("/api/activities/:id", verifyToken, activityController.deleteActivity); // Hapus kegiatan
