@@ -49,7 +49,7 @@ module.exports = (sequelize, Sequelize) => {
     });
 
     Activity.associate = (models) => {
-        Activity.belongsTo(models.mosque, {
+        Activity.belongsTo(models.mosques, {
             foreignKey: "mosque_id",
             as: "mosque"
         });
