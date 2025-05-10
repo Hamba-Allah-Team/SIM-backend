@@ -102,6 +102,17 @@ exports.deleteWallet = async (req, res) => {
         const wallet = await Wallet.findByPk(req.params.id);
         if (!wallet) return res.status(404).json({ message: "Wallet not found" });
 
+        // Cek jumlah wallet yang dimiliki oleh masjid ini
+        const walletCount = await Wallet.count({
+            where: { mosque_id: wallet.mosque_id }
+        });
+
+        if (walletCount <= 1) {
+            return res.status(400).json({
+                message: "Cannot delete the last wallet. A mosque must have at least one wallet."
+            });
+        }
+
         await wallet.destroy();
 
         res.json({ message: "Wallet deleted successfully" });
@@ -109,3 +120,4 @@ exports.deleteWallet = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
