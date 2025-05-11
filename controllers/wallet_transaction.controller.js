@@ -1,11 +1,12 @@
 const db = require("../models");
-const { Op, Sequelize } = require("sequelize");
-const WalletTransactions = db.wallet_transaction; // pastikan model ini sudah didefinisikan di models/index.js
-const Wallets = db.wallet; // pastikan model ini sudah didefinisikan di models/index.js
+const { Op } = require("sequelize");
+const WalletTransactions = db.wallet_transaction;
+const Wallets = db.wallet;
+const { recalculateWalletBalances } = require("../utils/finance");
 
 exports.createTransaction = async (req, res) => {
     try {
-        const wallet_id = parseInt(req.params.walletId); // ✅ ambil dari URL
+        const wallet_id = parseInt(req.params.walletId);
         const {
             amount,
             transaction_type,
@@ -15,43 +16,22 @@ exports.createTransaction = async (req, res) => {
 
         const user_id = req.userId;
 
-        // Validasi amount
         const amountNumber = Number(amount);
         if (isNaN(amountNumber) || amountNumber <= 0) {
             return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
         }
 
-        // Ambil transaksi terakhir dari wallet ini untuk mendapatkan saldo terakhir
-        const lastTransaction = await WalletTransactions.findOne({
-            where: { wallet_id },
-            order: [['transaction_date', 'DESC']] // atau ['createdAt', 'DESC'] jika pakai createdAt
-        });
-
-        let currentBalance = lastTransaction ? Number(lastTransaction.balance) : 0;
-        let newBalance;
-
-        // Hitung balance baru berdasarkan tipe transaksi
-        if (transaction_type === "income") {
-            newBalance = currentBalance + amountNumber;
-        } else if (transaction_type === "expense") {
-            if (amountNumber > currentBalance) {
-                return res.status(400).json({ message: "Insufficient balance for expense transaction." });
-            }
-            newBalance = currentBalance - amountNumber;
-        } else {
-            return res.status(400).json({ message: "Invalid transaction_type. Use 'income' or 'expense'." });
-        }
-
-        // Simpan transaksi baru
         const transaction = await WalletTransactions.create({
             wallet_id,
             amount: amountNumber,
             transaction_type,
             source_or_usage,
             transaction_date,
-            balance: newBalance,
+            balance: 0,
             user_id
         });
+
+        await recalculateWalletBalances(wallet_id);
 
         res.status(201).json(transaction);
     } catch (error) {
@@ -62,11 +42,10 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        // Ambil query parameter optional misalnya: ?includeDeleted=true
         const includeDeleted = req.query.includeDeleted === 'true';
 
         const transactions = await WalletTransactions.findAll({
-            paranoid: !includeDeleted, // false = tampilkan yang sudah soft-delete juga
+            paranoid: !includeDeleted,
             order: [['transaction_date', 'DESC']]
         });
 
@@ -104,96 +83,14 @@ exports.updateTransaction = async (req, res) => {
             return res.status(404).json({ message: "Transaction not found" });
         }
 
-        const wallet_id = transaction.wallet_id;
-
-        // Ambil transaksi sebelumnya untuk mendapatkan saldo dasar
-        const previousTransaction = await WalletTransactions.findOne({
-            where: {
-                wallet_id,
-                [Op.or]: [
-                    {
-                        transaction_date: { [Op.lt]: transaction_date }
-                    },
-                    {
-                        transaction_date: transaction_date,
-                        transaction_id: { [Op.lt]: id }
-                    }
-                ],
-                transaction_id: { [Op.ne]: id }
-            },
-            order: [['transaction_date', 'DESC'], ['transaction_id', 'DESC']]
+        await transaction.update({
+            amount,
+            transaction_type,
+            transaction_date,
+            source_or_usage
         });
 
-        const baseBalance = previousTransaction ? Number(previousTransaction.balance) : 0;
-        const numericAmount = Number(amount);
-
-        // Hitung saldo baru
-        let newBalance;
-        if (transaction_type === "income") {
-            newBalance = baseBalance + numericAmount;
-        } else if (transaction_type === "expense") {
-            if (numericAmount > baseBalance) {
-                return res.status(400).json({ message: "Insufficient balance for expense transaction." });
-            }
-            newBalance = baseBalance - numericAmount;
-        } else {
-            return res.status(400).json({ message: "Invalid transaction_type." });
-        }
-
-        // Update transaksi utama
-        await WalletTransactions.update(
-            {
-                amount,
-                transaction_type,
-                transaction_date,
-                source_or_usage,
-                balance: newBalance
-            },
-            {
-                where: { transaction_id: id }
-            }
-        );
-
-        // Ambil kembali transaksi yang telah diupdate
-        const updatedTransaction = await WalletTransactions.findByPk(id);
-
-        // Ambil semua transaksi setelahnya untuk diperbarui
-        const followingTransactions = await WalletTransactions.findAll({
-            where: {
-                wallet_id,
-                [Op.or]: [
-                    {
-                        transaction_date: { [Op.gt]: updatedTransaction.transaction_date }
-                    },
-                    {
-                        transaction_date: updatedTransaction.transaction_date,
-                        transaction_id: { [Op.gt]: updatedTransaction.transaction_id }
-                    }
-                ]
-            },
-            order: [['transaction_date', 'ASC'], ['transaction_id', 'ASC']]
-        });
-
-        let runningBalance = Number(updatedTransaction.balance);
-
-        // Update transaksi berikutnya satu per satu
-        for (const tx of followingTransactions) {
-            const txAmount = Number(tx.amount);
-            let updatedBalance;
-
-            if (tx.transaction_type === "income") {
-                updatedBalance = runningBalance + txAmount;
-            } else if (tx.transaction_type === "expense") {
-                updatedBalance = runningBalance - txAmount;
-            }
-
-            await WalletTransactions.update(
-                { balance: updatedBalance },
-                { where: { transaction_id: tx.transaction_id } }
-            );
-
-            runningBalance = updatedBalance;
-        }
+        await recalculateWalletBalances(transaction.wallet_id);
 
         res.json({ message: "Transaction and balances updated successfully" });
     } catch (error) {
@@ -212,8 +109,9 @@ exports.deleteTransaction = async (req, res) => {
         }
 
         await transaction.destroy();
+        await recalculateWalletBalances(transaction.wallet_id);
 
-        res.json({ message: "Transaction soft-deleted successfully" });
+        res.json({ message: "Transaction soft-deleted and balances updated successfully" });
     } catch (error) {
         console.error("Error soft deleting transaction:", error);
         res.status(500).json({ message: "Failed to soft delete transaction" });
@@ -224,10 +122,9 @@ exports.restoreTransaction = async (req, res) => {
     try {
         const id = req.params.transactionId;
 
-        // Cari transaksi yang sudah dihapus (soft delete)
         const transaction = await WalletTransactions.findOne({
             where: { transaction_id: id },
-            paranoid: false // agar bisa menemukan yang sudah soft delete
+            paranoid: false
         });
 
         if (!transaction) {
@@ -238,10 +135,10 @@ exports.restoreTransaction = async (req, res) => {
             return res.status(400).json({ message: "Transaction is not deleted" });
         }
 
-        // Lakukan restore
         await transaction.restore();
+        await recalculateWalletBalances(transaction.wallet_id);
 
-        res.json({ message: "Transaction restored successfully" });
+        res.json({ message: "Transaction restored and balances updated successfully" });
     } catch (error) {
         console.error("Error restoring transaction:", error);
         res.status(500).json({ message: "Failed to restore transaction" });
@@ -251,15 +148,12 @@ exports.restoreTransaction = async (req, res) => {
 exports.getWalletWithBalance = async (req, res) => {
     try {
         const walletId = req.params.walletId;
-
-        // Cari wallet berdasarkan ID
         const wallet = await Wallets.findByPk(walletId);
 
         if (!wallet) {
             return res.status(404).json({ message: "Wallet not found" });
         }
 
-        // Cari transaksi terakhir berdasarkan tanggal transaksi
         const lastTransaction = await WalletTransactions.findOne({
             where: { wallet_id: walletId },
             order: [['transaction_date', 'DESC']]
@@ -281,10 +175,8 @@ exports.getWalletWithBalance = async (req, res) => {
 
 exports.getAllWalletsWithBalance = async (req, res) => {
     try {
-        // Ambil semua wallet
         const wallets = await Wallets.findAll();
 
-        // Untuk setiap wallet, hitung saldo akhir
         const result = await Promise.all(wallets.map(async (wallet) => {
             const latestTransaction = await WalletTransactions.findOne({
                 where: { wallet_id: wallet.wallet_id },
@@ -311,7 +203,6 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
 
-        // Ambil semua wallet milik mosque tertentu
         const wallets = await Wallets.findAll({
             where: { mosque_id: mosqueId }
         });
