@@ -198,18 +198,21 @@ exports.updateTransaction = async (req, res) => {
 exports.deleteTransaction = async (req, res) => {
     try {
         const id = req.params.transactionId;
-        const deleted = await WalletTransactions.destroy({ where: { transaction_id: id } });
+        const transaction = await WalletTransactions.findByPk(id);
 
-        if (!deleted) {
+        if (!transaction) {
             return res.status(404).json({ message: "Transaction not found" });
         }
 
-        res.json({ message: "Transaction deleted successfully" });
+        await transaction.destroy();
+
+        res.json({ message: "Transaction soft-deleted successfully" });
     } catch (error) {
-        console.error("Error deleting transaction:", error);
-        res.status(500).json({ message: "Failed to delete transaction" });
+        console.error("Error soft deleting transaction:", error);
+        res.status(500).json({ message: "Failed to soft delete transaction" });
     }
 };
+
 
 exports.getWalletWithBalance = async (req, res) => {
     try {
