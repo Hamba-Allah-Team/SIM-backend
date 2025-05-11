@@ -62,11 +62,18 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        const transactions = await WalletTransactions.findAll();
+        // Ambil query parameter optional misalnya: ?includeDeleted=true
+        const includeDeleted = req.query.includeDeleted === 'true';
+
+        const transactions = await WalletTransactions.findAll({
+            paranoid: !includeDeleted, // false = tampilkan yang sudah soft-delete juga
+            order: [['transaction_date', 'DESC']]
+        });
+
         res.json(transactions);
     } catch (error) {
-        console.error("Error fetching transactions:", error);
-        res.status(500).json({ message: "Failed to fetch transactions" });
+        console.error("Error retrieving transactions:", error);
+        res.status(500).json({ message: "Failed to retrieve transactions" });
     }
 };
 
