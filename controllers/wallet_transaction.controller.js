@@ -220,6 +220,33 @@ exports.deleteTransaction = async (req, res) => {
     }
 };
 
+exports.restoreTransaction = async (req, res) => {
+    try {
+        const id = req.params.transactionId;
+
+        // Cari transaksi yang sudah dihapus (soft delete)
+        const transaction = await WalletTransactions.findOne({
+            where: { transaction_id: id },
+            paranoid: false // agar bisa menemukan yang sudah soft delete
+        });
+
+        if (!transaction) {
+            return res.status(404).json({ message: "Transaction not found" });
+        }
+
+        if (transaction.deletedAt === null) {
+            return res.status(400).json({ message: "Transaction is not deleted" });
+        }
+
+        // Lakukan restore
+        await transaction.restore();
+
+        res.json({ message: "Transaction restored successfully" });
+    } catch (error) {
+        console.error("Error restoring transaction:", error);
+        res.status(500).json({ message: "Failed to restore transaction" });
+    }
+};
 
 exports.getWalletWithBalance = async (req, res) => {
     try {
