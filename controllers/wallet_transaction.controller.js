@@ -228,3 +228,38 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
     }
 };
+
+exports.getPublicSummary = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosqueId;
+
+        // Ambil semua wallet milik mosque tertentu
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: ['wallet_id']
+        });
+
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        // Hitung total income dan expense dari semua transaksi aktif (non-soft-deleted)
+        const [result] = await db.sequelize.query(`
+            SELECT 
+                SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS total_income,
+                SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) AS total_expense
+            FROM wallet_transactions
+            WHERE wallet_id IN (:walletIds) AND deleted_at IS NULL
+        `, {
+            replacements: { walletIds },
+            type: db.Sequelize.QueryTypes.SELECT
+        });
+
+        res.json({
+            total_income: parseFloat(result.total_income || 0),
+            total_expense: parseFloat(result.total_expense || 0)
+        });
+
+    } catch (error) {
+        console.error("Error generating public summary:", error);
+        res.status(500).json({ message: "Failed to fetch public financial summary" });
+    }
+};
