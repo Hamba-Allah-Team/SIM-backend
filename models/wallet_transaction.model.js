@@ -50,11 +50,17 @@ module.exports = (sequelize, Sequelize) => {
         updated_at: {
             type: Sequelize.DATE,
             defaultValue: Sequelize.NOW
+        },
+        deleted_at: {
+            type: Sequelize.DATE,
+            allowNull: true
         }
     }, {
         timestamps: true,
         createdAt: "created_at",
         updatedAt: "updated_at",
+        paranoid: true, // aktifkan soft delete
+        deletedAt: "deleted_at", // tentukan nama kolom soft delete
         underscored: true // optional: agar otomatis pakai snake_case untuk semua kolom
     });
 

@@ -62,11 +62,18 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        const transactions = await WalletTransactions.findAll();
+        // Ambil query parameter optional misalnya: ?includeDeleted=true
+        const includeDeleted = req.query.includeDeleted === 'true';
+
+        const transactions = await WalletTransactions.findAll({
+            paranoid: !includeDeleted, // false = tampilkan yang sudah soft-delete juga
+            order: [['transaction_date', 'DESC']]
+        });
+
         res.json(transactions);
     } catch (error) {
-        console.error("Error fetching transactions:", error);
-        res.status(500).json({ message: "Failed to fetch transactions" });
+        console.error("Error retrieving transactions:", error);
+        res.status(500).json({ message: "Failed to retrieve transactions" });
     }
 };
 
@@ -198,16 +205,46 @@ exports.updateTransaction = async (req, res) => {
 exports.deleteTransaction = async (req, res) => {
     try {
         const id = req.params.transactionId;
-        const deleted = await WalletTransactions.destroy({ where: { transaction_id: id } });
+        const transaction = await WalletTransactions.findByPk(id);
 
-        if (!deleted) {
+        if (!transaction) {
             return res.status(404).json({ message: "Transaction not found" });
         }
 
-        res.json({ message: "Transaction deleted successfully" });
+        await transaction.destroy();
+
+        res.json({ message: "Transaction soft-deleted successfully" });
     } catch (error) {
-        console.error("Error deleting transaction:", error);
-        res.status(500).json({ message: "Failed to delete transaction" });
+        console.error("Error soft deleting transaction:", error);
+        res.status(500).json({ message: "Failed to soft delete transaction" });
+    }
+};
+
+exports.restoreTransaction = async (req, res) => {
+    try {
+        const id = req.params.transactionId;
+
+        // Cari transaksi yang sudah dihapus (soft delete)
+        const transaction = await WalletTransactions.findOne({
+            where: { transaction_id: id },
+            paranoid: false // agar bisa menemukan yang sudah soft delete
+        });
+
+        if (!transaction) {
+            return res.status(404).json({ message: "Transaction not found" });
+        }
+
+        if (transaction.deletedAt === null) {
+            return res.status(400).json({ message: "Transaction is not deleted" });
+        }
+
+        // Lakukan restore
+        await transaction.restore();
+
+        res.json({ message: "Transaction restored successfully" });
+    } catch (error) {
+        console.error("Error restoring transaction:", error);
+        res.status(500).json({ message: "Failed to restore transaction" });
     }
 };
 
