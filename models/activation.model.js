@@ -46,9 +46,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
   }, {
-    underscored: true, // agar Sequelize cocokkan dengan nama kolom snake_case
-    timestamps: true,  // aktifkan otomatis created_at & updated_at
-    tableName: 'activations' // pastikan cocok dengan nama tabel di DB
+    underscored: true,
+    timestamps: true,
+    tableName: 'activations'
   });
 
   return Activation;
