@@ -39,6 +39,17 @@ module.exports = {
         status: 'active',
         created_at: new Date(),
         updated_at: new Date()
+      },
+      {
+        mosque_id: null,
+        email: 'superadmin@mail.com',
+        username: 'superadmin1',
+        password: hashedPassword2,
+        name: 'Superadmin1',
+        role: 'superadmin',
+        status: 'active',
+        created_at: new Date(),
+        updated_at: new Date()
       }
     ]);
   },
