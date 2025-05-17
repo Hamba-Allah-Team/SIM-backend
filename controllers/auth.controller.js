@@ -2,9 +2,7 @@ const db = require("../models");
 const User = db.user;
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { Op } = require("sequelize");
 const validator = require("validator");
-const { sendMail } = require("../utils/sendMail");
 
 exports.signup = async (req, res) => {
   const t = await db.sequelize.transaction();
