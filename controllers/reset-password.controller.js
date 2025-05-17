@@ -14,7 +14,7 @@ exports.sendResetPassword = async (req, res) => {
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     user.password_reset_code = resetCode;
-    user.password_reset_expires_at = new Date(Date.now() + 30 * 60 * 1000);
+    user.password_reset_expires_at = new Date(Date.now() + 1 * 60 * 1000);
     await user.save();
 
     await sendMail({
