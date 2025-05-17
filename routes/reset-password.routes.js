@@ -10,7 +10,7 @@ module.exports = function (app) {
   });
 
   // Reset password routes
-  app.post("/api/reset-password/sendResetPassword", authController.sendResetPassword);
-  app.post("/api/reset-password/verifyResetPassword", authController.verifyResetPassword);
-  app.put("/api/reset-password/changePassword", authController.changePassword);
+  app.post("/api/reset-password/send-reset-password", authController.sendResetPassword);
+  app.post("/api/reset-password/verify-reset-password", authController.verifyResetPassword);
+  app.put("/api/reset-password/change-password", authController.changePassword);
 };
