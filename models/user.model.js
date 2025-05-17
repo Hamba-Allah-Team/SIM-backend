@@ -42,11 +42,11 @@ module.exports = (sequelize, Sequelize) => {
         type: Sequelize.ENUM("active", "inactive"),
         allowNull: false
       },
-      reset_password: {
+      password_reset_code: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      reset_password_expiration: {
+      password_reset_expires_at: {
         type: Sequelize.DATE,
         allowNull: true,
       },
