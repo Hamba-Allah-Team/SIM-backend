@@ -13,11 +13,6 @@ module.exports = function (app) {
   // Auth routes
   app.post("/api/auth/signup", authController.signup);
   app.post("/api/auth/signin", authController.signin);
-  app.get("/api/auth/profile", verifyToken, authController.profile);
-  app.post("/api/auth/logout", verifyToken, authController.logout);
 
-  // Reset password routes
-  app.post("/api/auth/send-reset-password", authController.sendResetPassword);
-  app.post("/api/auth/reset-password", authController.resetPassword);
-  app.put("/api/auth/change-password", verifyToken, authController.changePassword);
+  app.post("/api/auth/logout", verifyToken, authController.logout);
 };
