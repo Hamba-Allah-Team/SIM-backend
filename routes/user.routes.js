@@ -7,4 +7,6 @@ module.exports = function (app) {
   app.get("/api/users", verifyToken, userController.getUsers);
   app.put("/api/users/:id", verifyToken, checkSoftDelete, userController.updateUser);
   app.delete("/api/users/:id", verifyToken, checkSoftDelete, userController.softDeleteUser);
+  app.get("/api/users/profile", verifyToken, userController.profile);
+  app.put("/api/users/change-password", verifyToken, userController.changePassword);
 };
