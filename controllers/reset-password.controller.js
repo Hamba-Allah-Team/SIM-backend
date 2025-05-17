@@ -81,10 +81,6 @@ exports.changePassword = async (req, res) => {
       return res.status(400).send({ message: "Kode reset tidak valid." });
     }
 
-    if (user.password_reset_expires_at < new Date()) {
-      return res.status(400).send({ message: "Kode reset telah kedaluwarsa." });
-    }
-
     user.password = bcrypt.hashSync(newPassword, 8);
     user.password_reset_code = null;
     user.password_reset_expires_at = null;
