@@ -32,7 +32,11 @@ module.exports = {
         type: Sequelize.ENUM('activation', 'extension'),
         allowNull: false
       },
-      username_input: {
+      username: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      email: {
         type: Sequelize.STRING,
         allowNull: true
       },
