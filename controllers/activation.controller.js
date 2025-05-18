@@ -15,7 +15,6 @@ exports.submitActivationRequest = async (req, res) => {
       username,
       email,
       proof_number,
-      proof_image,
       type,
       mosque_name,
       mosque_address,
@@ -25,9 +24,15 @@ exports.submitActivationRequest = async (req, res) => {
       mosque_instagram,
     } = req.body;
 
-    if (!username || !email || !proof_number || !proof_image || !type) {
+    if (!username || !email || !proof_number || !type) {
       return res.status(400).send({ message: "All fields are required!" });
     }
+
+    if (!req.file) {
+      return res.status(400).send({ message: "Proof image is required!" });
+    }
+
+    const proof_image = req.file.filename;
 
     if (type !== "activation") {
       return res.status(400).send({ message: "Invalid activation type!" });
@@ -44,8 +49,8 @@ exports.submitActivationRequest = async (req, res) => {
 
     const activation = await Activation.create(
       {
-        username: username,
-        email: email,
+        username,
+        email,
         transaction_number: proof_number,
         proof_image,
         activation_type: type,
@@ -178,11 +183,17 @@ exports.processActivationRequest = async (req, res) => {
 // Submit Extension Request
 exports.submitExtensionRequest = async (req, res) => {
   try {
-    const { username, email, proof_number, proof_image, type } = req.body;
+    const { username, email, proof_number, type } = req.body;
 
-    if (!username || !email || !proof_number || !proof_image || !type) {
+    if (!username || !email || !proof_number || !type) {
       return res.status(400).send({ message: "All fields are required!" });
     }
+
+    if (!req.file) {
+      return res.status(400).send({ message: "Proof image is required!" });
+    }
+
+    const proof_image = req.file.filename;
 
     if (type !== "extension") {
       return res.status(400).send({ message: "Invalid extension type!" });
@@ -194,17 +205,15 @@ exports.submitExtensionRequest = async (req, res) => {
     }
 
     const extension = await Activation.create({
-      username: username,
-      email: email,
+      username,
+      email,
       transaction_number: proof_number,
       proof_image,
       activation_type: type,
       status: "pending",
     });
 
-    res
-      .status(201)
-      .send({ message: "Extension request submitted.", extension });
+    res.status(201).send({ message: "Extension request submitted.", extension });
   } catch (error) {
     console.error("Error submitting extension request:", error);
     res.status(500).send({
