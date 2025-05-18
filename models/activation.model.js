@@ -17,7 +17,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('activation', 'extension'),
       allowNull: false,
     },
-    username_input: {
+    username: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    email: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -44,11 +48,11 @@ module.exports = (sequelize, DataTypes) => {
     admin_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-    },
+    }
   }, {
     underscored: true,
     timestamps: true,
-    tableName: 'activations'
+    tableName: 'activations',
   });
 
   return Activation;
