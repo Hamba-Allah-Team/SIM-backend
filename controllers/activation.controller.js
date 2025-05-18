@@ -81,12 +81,10 @@ exports.submitActivationRequest = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Error submitting activation request:", error);
-    res
-      .status(500)
-      .send({
-        message: "Failed to submit activation request",
-        error: error.message,
-      });
+    res.status(500).send({
+      message: "Failed to submit activation request",
+      error: error.message,
+    });
   }
 };
 
@@ -209,12 +207,10 @@ exports.submitExtensionRequest = async (req, res) => {
       .send({ message: "Extension request submitted.", extension });
   } catch (error) {
     console.error("Error submitting extension request:", error);
-    res
-      .status(500)
-      .send({
-        message: "Failed to submit extension request",
-        error: error.message,
-      });
+    res.status(500).send({
+      message: "Failed to submit extension request",
+      error: error.message,
+    });
   }
 };
 
@@ -305,6 +301,140 @@ exports.processExtensionRequest = async (req, res) => {
     return res.status(400).send({ message: "Invalid action." });
   } catch (error) {
     console.error("Error processing extension request:", error);
+    res.status(500).send({ message: error.message });
+  }
+};
+
+// Get all Activation Requests (for Admin)
+exports.getActivationRequests = async (req, res) => {
+  try {
+    const {
+      status,
+      search = "",
+      limit = 20,
+      offset = 0,
+      sortBy = "createdAt",
+      sortOrder = "DESC",
+    } = req.query;
+
+    const where = {
+      activation_type: "activation",
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+        { activation_id: !isNaN(search) ? Number(search) : -1 },
+      ];
+    }
+
+    const activations = await Activation.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    res.status(200).send({
+      total: activations.count,
+      activations: activations.rows,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+  } catch (error) {
+    console.error("Error fetching activation requests:", error);
+    res.status(500).send({ message: error.message });
+  }
+};
+
+// Get Activation Request by ID
+exports.getActivationRequestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const activation = await Activation.findOne({
+      where: { activation_id: id, activation_type: "activation" },
+    });
+
+    if (!activation) {
+      return res.status(404).send({ message: "Activation request not found." });
+    }
+
+    res.status(200).send({ activation });
+  } catch (error) {
+    console.error("Error fetching activation request:", error);
+    res.status(500).send({ message: error.message });
+  }
+};
+
+// Get all Extension Requests (for Admin)
+exports.getExtensionRequests = async (req, res) => {
+  try {
+    const {
+      status,
+      search = "",
+      limit = 20,
+      offset = 0,
+      sortBy = "createdAt",
+      sortOrder = "DESC",
+    } = req.query;
+
+    const where = {
+      activation_type: "extension",
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where[Op.or] = [
+        { username: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+        { activation_id: !isNaN(search) ? Number(search) : -1 },
+      ];
+    }
+
+    const extensions = await Activation.findAndCountAll({
+      where,
+      order: [[sortBy, sortOrder]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    res.status(200).send({
+      total: extensions.count,
+      extensions: extensions.rows,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+  } catch (error) {
+    console.error("Error fetching extension requests:", error);
+    res.status(500).send({ message: error.message });
+  }
+};
+
+// Get Extension Request by ID
+exports.getExtensionRequestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const extension = await Activation.findOne({
+      where: { activation_id: id, activation_type: "extension" },
+    });
+
+    if (!extension) {
+      return res.status(404).send({ message: "Extension request not found." });
+    }
+
+    res.status(200).send({ extension });
+  } catch (error) {
+    console.error("Error fetching extension request:", error);
     res.status(500).send({ message: error.message });
   }
 };
