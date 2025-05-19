@@ -20,6 +20,8 @@ require("./routes/activity.routes")(app);
 require("./routes/activation.routes")(app);
 require("./routes/reset-password.routes")(app);
 
+app.use("/uploads", express.static("uploads"));
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}.`);
