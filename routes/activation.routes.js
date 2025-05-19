@@ -10,7 +10,7 @@ module.exports = function (app) {
     activationController.submitActivationRequest
   );
   app.post(
-    "/api/extensions/submit",
+    "/api/extentions/submit",
     upload.single("proof_image"),
     activationController.submitExtensionRequest
   );
@@ -23,7 +23,7 @@ module.exports = function (app) {
 
   // Extension submit & process
   app.post(
-    "/api/extensions/process/:id",
+    "/api/extentions/process/:id",
     verifyToken,
     activationController.processExtensionRequest
   );
@@ -42,12 +42,12 @@ module.exports = function (app) {
 
   // Extension requests (admin read)
   app.get(
-    "/api/extensions",
+    "/api/extentions",
     verifyToken,
     activationController.getExtensionRequests
   );
   app.get(
-    "/api/extensions/:id",
+    "/api/extentions/:id",
     verifyToken,
     activationController.getExtensionRequestById
   );
