@@ -7,6 +7,7 @@ const sequelize = new Sequelize(
   config.PASSWORD,
   {
     host: config.HOST,
+    port: config.PORT,
     dialect: config.dialect,
     pool: {
       max: config.pool.max,
@@ -29,6 +30,7 @@ db.wallet_transaction = require("./wallet_transaction.model.js")(sequelize, Sequ
 db.contents = require("./content.model.js")(sequelize, Sequelize);
 db.activity = require("./activity.model.js")(sequelize, Sequelize);
 db.activations = require("./activation.model.js")(sequelize, Sequelize);
+db.reservation_room = require("./reservation_room.model.js")(sequelize, Sequelize);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {

@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node --env-file=.env index.js",
-    "dev": "node --watch --trace-warnings --env-file=.env index.js"
+    "dev": "node --watch --trace-warnings --env-file=.env index.js",
+    "sequelize": "sequelize-cli"
   },
   "keywords": [],
   "author": "",
@@ -26,5 +27,8 @@
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7",
     "validator": "^13.15.0"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.3"
   }
 }
