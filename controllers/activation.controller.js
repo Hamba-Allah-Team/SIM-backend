@@ -20,19 +20,18 @@ exports.submitActivationRequest = async (req, res) => {
       mosque_address,
       mosque_description,
       mosque_phone_whatsapp,
+      mosque_email,
       mosque_facebook,
       mosque_instagram,
     } = req.body;
 
     if (!username || !email || !proof_number || !type) {
-      return res.status(400).send({ message: "All fields are required!" });
+      return res.status(400).send({ message: "All required fields must be filled!" });
     }
 
     if (!req.file) {
       return res.status(400).send({ message: "Proof image is required!" });
     }
-
-    const proof_image = req.file.filename;
 
     if (type !== "activation") {
       return res.status(400).send({ message: "Invalid activation type!" });
@@ -41,11 +40,25 @@ exports.submitActivationRequest = async (req, res) => {
     const existingUser = await User.findOne({
       where: { [Op.or]: [{ username }, { email }] },
     });
+
     if (existingUser) {
       return res
         .status(400)
         .send({ message: "Username or email already exists!" });
     }
+
+    const anyMosqueFieldFilled =
+      mosque_name || mosque_address || mosque_description || mosque_phone_whatsapp || mosque_email || mosque_facebook || mosque_instagram;
+
+    if (anyMosqueFieldFilled) {
+      if (!mosque_name || !mosque_address) {
+        return res.status(400).send({
+          message: "Mosque name and address are required if mosque data is provided.",
+        });
+      }
+    }
+
+    const proof_image = req.file.filename;
 
     const activation = await Activation.create(
       {
@@ -55,34 +68,22 @@ exports.submitActivationRequest = async (req, res) => {
         proof_image,
         activation_type: type,
         status: "pending",
+        mosque_name: mosque_name || null,
+        mosque_address: mosque_address || null,
+        mosque_phone_whatsapp: mosque_phone_whatsapp || null,
+        mosque_email: mosque_email || null,
+        mosque_facebook: mosque_facebook || null,
+        mosque_instagram: mosque_instagram || null,
+        mosque_description: mosque_description || null,
       },
       { transaction: t }
     );
 
-    let mosqueId = null;
-
-    if (mosque_name) {
-      const mosque = await Mosque.create(
-        {
-          name: mosque_name,
-          address: mosque_address,
-          description: mosque_description || null,
-          phone_whatsapp: mosque_phone_whatsapp || null,
-          facebook: mosque_facebook || null,
-          instagram: mosque_instagram || null,
-        },
-        { transaction: t }
-      );
-
-      mosqueId = mosque.mosque_id;
-      activation.mosque_id = mosqueId;
-      await activation.save({ transaction: t });
-    }
-
     await t.commit();
-    res
-      .status(201)
-      .send({ message: "Activation request submitted.", activation, mosqueId });
+    res.status(201).send({
+      message: "Activation request submitted successfully.",
+      activation,
+    });
   } catch (error) {
     await t.rollback();
     console.error("Error submitting activation request:", error);
@@ -106,30 +107,68 @@ exports.processActivationRequest = async (req, res) => {
     }
 
     if (activation.status === "approved" || activation.status === "rejected") {
-      return res
-        .status(400)
-        .send({ message: "This request has already been processed." });
+      return res.status(400).send({ message: "This request has already been processed." });
     }
 
     if (action === "approve") {
-      const { username, email, transaction_number, proof_image, mosque_id } =
-        activation;
+      const {
+        username,
+        email,
+        transaction_number,
+        proof_image,
+        mosque_name,
+        mosque_address,
+        mosque_description,
+        mosque_phone_whatsapp,
+        mosque_email,
+        mosque_facebook,
+        mosque_instagram,
+      } = activation;
+
+      // Jika user mengisi data masjid, maka mosque_name dan mosque_address wajib
+      const anyMosqueDataProvided =
+        mosque_name || mosque_address || mosque_description ||
+        mosque_phone_whatsapp || mosque_email || mosque_facebook || mosque_instagram;
+
+      if (anyMosqueDataProvided && (!mosque_name || !mosque_address)) {
+        return res.status(400).send({
+          message: "Mosque name and address are required if mosque data was provided.",
+        });
+      }
+
+      let mosque = null;
+
+      // Jika ada data masjid, buat masjid
+      if (anyMosqueDataProvided) {
+        mosque = await Mosque.create(
+          {
+            name: mosque_name,
+            address: mosque_address,
+            description: mosque_description || null,
+            phone_whatsapp: mosque_phone_whatsapp || null,
+            email: mosque_email || null,
+            facebook: mosque_facebook || null,
+            instagram: mosque_instagram || null,
+          },
+          { transaction: t }
+        );
+      }
+
+      const expiredDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      expiredDate.setHours(0, 0, 0, 0);
+
       const user = await User.create(
         {
-          username: username,
-          email: email,
+          username,
+          email,
           password: bcrypt.hashSync("defaultpassword", 8),
           name: username,
           role: "admin",
           status: "active",
-          mosque_id: mosque_id || null,
+          mosque_id: mosque ? mosque.mosque_id : null,
           extension_code: transaction_number,
           profile_image: proof_image,
-          expired_at: (() => {
-            const date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-            date.setHours(0, 0, 0, 0);
-            return date;
-          })(),
+          expired_at: expiredDate,
         },
         { transaction: t }
       );
@@ -139,6 +178,7 @@ exports.processActivationRequest = async (req, res) => {
           status: "approved",
           approved_at: new Date(),
           user_id: user.user_id,
+          mosque_id: mosque ? mosque.mosque_id : null,
         },
         { transaction: t }
       );
@@ -151,9 +191,12 @@ exports.processActivationRequest = async (req, res) => {
         html: `Halo ${username},<br><br>Permintaan aktivasi akun Anda telah disetujui. Akun Anda sekarang aktif.<br><br>Terima kasih sudah bergabung dengan kami!`,
       });
 
-      return res
-        .status(200)
-        .send({ message: "User activated and added.", user });
+      return res.status(200).send({
+        message: "User and mosque created activation approved.",
+        user,
+        mosque,
+      });
+
     } else if (action === "reject") {
       await activation.update(
         { status: "rejected", approved_at: new Date() },
@@ -167,9 +210,7 @@ exports.processActivationRequest = async (req, res) => {
         html: `Halo ${activation.username},<br><br>Mohon maaf, permintaan aktivasi akun Anda ditolak. Silakan hubungi layanan dukungan untuk informasi lebih lanjut.<br><br>Terima kasih.`,
       });
 
-      return res
-        .status(200)
-        .send({ message: "Request rejected successfully." });
+      return res.status(200).send({ message: "Request rejected successfully." });
     }
 
     res.status(400).send({ message: "Invalid action." });

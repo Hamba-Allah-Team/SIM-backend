@@ -33,6 +33,30 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    mosque_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    mosque_address: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    mosque_phone_whatsapp: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    mosque_email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    mosque_facebook: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    mosque_instagram: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     status: {
       type: DataTypes.ENUM('pending', 'approved', 'rejected'),
       defaultValue: 'pending',
