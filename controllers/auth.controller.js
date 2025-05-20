@@ -2,37 +2,53 @@ const db = require("../models");
 const User = db.user;
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { Op } = require("sequelize");
 const validator = require("validator");
-const { sendMail } = require("../utils/sendMail");
 
 exports.signup = async (req, res) => {
   const t = await db.sequelize.transaction();
 
   try {
-    const { username, email, password, name, role, status, mosque_name, mosque_address, mosque_description, mosque_phone_whatsapp, mosque_email, mosque_facebook, mosque_instagram } = req.body;
+    const {
+      username,
+      email,
+      password,
+      name,
+      role,
+      status,
+      mosque_name,
+      mosque_address,
+      mosque_description,
+      mosque_phone_whatsapp,
+      mosque_email,
+      mosque_facebook,
+      mosque_instagram,
+    } = req.body;
 
     // Validasi input wajib
     if (!username || !email || !password || !name) {
-      return res.status(400).send({ message: "All required fields must be filled." });
+      return res
+        .status(400)
+        .send({ message: "Semua kolom wajib diisi." });
     }
 
     // Validasi format email
     if (!validator.isEmail(email)) {
-      return res.status(400).send({ message: "Invalid email format." });
+      return res.status(400).send({ message: "Format email tidak valid." });
     }
 
     // Validasi panjang password (minimal 8 karakter)
     if (password.length < 8) {
-      return res.status(400).send({ message: "Password must be at least 8 characters long." });
+      return res
+        .status(400)
+        .send({ message: "Kata sandi minimal harus 8 karakter." });
     }
 
     // Cek apakah email sudah terdaftar
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(409).send({ message: "Email already registered." });
+      return res.status(409).send({ message: "Email sudah terdaftar." });
     }
-    
+
     // Tentukan tanggal expired
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 30);
@@ -47,7 +63,7 @@ exports.signup = async (req, res) => {
         name,
         role: role || "admin",
         status: status || "active",
-        expired_at: expiredAt, 
+        expired_at: expiredAt,
       },
       { transaction: t }
     );
@@ -74,7 +90,7 @@ exports.signup = async (req, res) => {
     }
 
     await t.commit();
-    res.status(201).send({ message: "User registered successfully!" });
+    res.status(201).send({ message: "Pendaftaran pengguna berhasil!" });
   } catch (error) {
     await t.rollback();
     res.status(500).send({ message: error.message });
@@ -87,19 +103,22 @@ exports.signin = async (req, res) => {
 
     // Validasi input
     if (!email || !password) {
-      return res.status(400).send({ message: "Email and password are required." });
+      return res
+        .status(400)
+        .send({ message: "Email dan kata sandi wajib diisi." });
     }
 
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(404).send({ message: "User not found." });
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
 
     if (user.deleted_at) {
       return res.status(403).send({
         accessToken: null,
-        message: "Your account has been deactivated. Please contact the administrator.",
+        message:
+          "Akun Anda telah dinonaktifkan. Silakan hubungi administrator.",
       });
     }
 
@@ -108,7 +127,7 @@ exports.signin = async (req, res) => {
     if (!passwordIsValid) {
       return res.status(401).send({
         accessToken: null,
-        message: "Invalid Password!",
+        message: "Kata sandi salah!",
       });
     }
 
@@ -116,7 +135,7 @@ exports.signin = async (req, res) => {
     if (user.role === "admin" && user.status === "inactive") {
       return res.status(403).send({
         accessToken: null,
-        message: "Your account is inactive. Please contact the administrator.",
+        message: "Akun Anda tidak aktif. Silakan Lakukan Perpanjangan.",
       });
     }
 
@@ -127,16 +146,16 @@ exports.signin = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", 
+      secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 3600000, // 1 hour
+      maxAge: 3600000, // 1 jam
     });
 
     res.status(200).send({
       id: user.user_id,
       username: user.username,
       email: user.email,
-      message: "Login successful",
+      message: "Login berhasil",
       token: token,
       role: user.role,
     });
@@ -145,118 +164,10 @@ exports.signin = async (req, res) => {
   }
 };
 
-exports.profile = async (req, res) => {
-  try {
-    const user = await User.findByPk(req.userId, {
-      attributes: { exclude: ["password"] },
-      include: [
-        {
-          model: db.mosques,
-          as: "mosque",
-          attributes: { exclude: ["createdAt", "updatedAt"] }
-        }
-      ]
-    });
-
-    if (!user) {
-      return res.status(404).send({ message: "User not found." });
-    }
-
-    res.status(200).send(user);
-  } catch (error) {
-    res.status(500).send({ message: error.message });
-  }
-};
-
 exports.logout = async (req, res) => {
   try {
     res.clearCookie("token");
-    res.status(200).send({ message: "You have been logged out successfully." });
-  } catch (error) {
-    res.status(500).send({ message: error.message });
-  }
-};
-
-exports.sendResetPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).send({ message: "Email is required." });
-
-    const user = await db.user.findOne({ where: { email } });
-    if (!user) return res.status(404).send({ message: "User not found." });
-
-    const token = jwt.sign({ id: user.user_id }, process.env.JWT_SECRET, {
-      expiresIn: "15m",
-    });
-
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-
-    await sendMail({
-      to: user.email,
-      subject: "Reset Password - SIM Masjid",
-      html: `<p>Click the following link to reset your password:</p>
-             <a href="${resetLink}">${resetLink}</a><br/>
-             <p>This link will expire in 15 minutes.</p>`,
-    });
-
-    res.status(200).send({ message: "Reset password email sent successfully." });
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
-};
-
-exports.resetPassword = async (req, res) => {
-  try {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword) {
-      return res.status(400).send({ message: "Token and new password are required." });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await db.user.findByPk(decoded.id);
-
-    if (!user) return res.status(404).send({ message: "User not found." });
-
-    const hashedPassword = bcrypt.hashSync(newPassword, 8);
-    await user.update({ password: hashedPassword });
-
-    res.status(200).send({ message: "Password has been reset successfully." });
-  } catch (err) {
-    res.status(500).send({ message: "Invalid or expired token." });
-  }
-};
-
-exports.changePassword = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { currentPassword, newPassword, confirmNewPassword } = req.body;
-
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      return res.status(400).send({ message: "All fields are required." });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).send({ message: "New password must be at least 8 characters long." });
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      return res.status(400).send({ message: "New password and confirmation do not match." });
-    }
-
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).send({ message: "User not found." });
-    }
-
-    const isMatch = bcrypt.compareSync(currentPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).send({ message: "Current password is incorrect." });
-    }
-
-    user.password = bcrypt.hashSync(newPassword, 8);
-    await user.save();
-
-    res.status(200).send({ message: "Password updated successfully." });
+    res.status(200).send({ message: "Anda berhasil keluar." });
   } catch (error) {
     res.status(500).send({ message: error.message });
   }
