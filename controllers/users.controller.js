@@ -4,108 +4,180 @@ const { Op } = require("sequelize");
 
 // READ with sort, filter, pagination
 exports.getUsers = async (req, res) => {
-    try {
-      const {
-        role,
-        status,
-        search,
-        sortBy = "created_at",
-        sortOrder = "DESC",
-        limit = 10,
-        page = 1,
-      } = req.query;
-      const offset = (page - 1) * limit;
-  
-      const where = {
-        deleted_at: null,
-      };
-  
-      if (status) where.status = status;
-      if (search) {
-        where[Op.or] = [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { email: { [Op.iLike]: `%${search}%` } },
-          { username: { [Op.iLike]: `%${search}%` } },
-        ];
+  try {
+    const {
+      role,
+      status,
+      search,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+      limit = 10,
+      page = 1,
+    } = req.query;
+    const offset = (page - 1) * limit;
+
+    const where = {
+      deleted_at: null,
+    };
+
+    if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+        { username: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const validSortFields = ["created_at", "username", "name", "email"];
+    const orderField = validSortFields.includes(sortBy) ? sortBy : "created_at";
+
+    const order = [[orderField, sortOrder]];
+
+    const users = await User.findAndCountAll({
+      where,
+      order,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    res.status(200).send({
+      total: users.count,
+      page: parseInt(page),
+      users: users.rows,
+    });
+  } catch (err) {
+    res.status(500).send({ message: err.message });
+  }
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    const loggedInUserId = req.userId;
+    const targetUserId = req.params.id;
+
+    const { name, email, username, status, role, expired_at } = req.body;
+
+    if (!name || !email || !username) {
+      return res
+        .status(400)
+        .send({ message: "Nama, email, dan username wajib diisi." });
+    }
+
+    const user = await User.findByPk(targetUserId);
+    if (!user || user.deleted_at) {
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
+    }
+
+    const loggedInUser = await User.findByPk(loggedInUserId);
+    if (!loggedInUser) {
+      return res.status(403).send({ message: "Tidak diizinkan." });
+    }
+
+    if (loggedInUser.role === "superadmin") {
+      await user.update({ name, email, username, status, role, expired_at });
+      return res
+        .status(200)
+        .send({ message: "Pengguna berhasil diperbarui oleh superadmin." });
+    }
+
+    if (loggedInUser.role === "admin") {
+      if (loggedInUserId !== user.user_id) {
+        return res.status(403).send({
+          message: "Admin hanya dapat memperbarui akun miliknya sendiri.",
+        });
       }
-  
-      const validSortFields = ['created_at', 'username', 'name', 'email'];
-      const orderField = validSortFields.includes(sortBy) ? sortBy : 'created_at';
-  
-      const order = [[orderField, sortOrder]];
-  
-      const users = await User.findAndCountAll({
-        where,
-        order,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-      });
-  
-      res.status(200).send({
-        total: users.count,
-        page: parseInt(page),
-        users: users.rows,
-      });
-    } catch (err) {
-      res.status(500).send({ message: err.message });
+
+      await user.update({ name, email, username });
+      return res
+        .status(200)
+        .send({ message: "Profil Anda berhasil diperbarui." });
     }
-  };
 
-  exports.updateUser = async (req, res) => {
-    try {
-        const loggedInUserId = req.userId;
-        const targetUserId = req.params.id;
-
-        const { name, email, username, status, role, expired_at } = req.body;
-
-        if (!name || !email || !username) {
-            return res.status(400).send({ message: "Name, email, and username are required." });
-        }
-
-        const user = await User.findByPk(targetUserId);
-        if (!user || user.deleted_at) {
-            return res.status(404).send({ message: "User not found." });
-        }
-
-        const loggedInUser = await User.findByPk(loggedInUserId);
-        if (!loggedInUser) {
-            return res.status(403).send({ message: "Unauthorized." });
-        }
-
-        if (loggedInUser.role === "superadmin") {
-            await user.update({ name, email, username, status, role, expired_at });
-            return res.status(200).send({ message: "User updated successfully by superadmin." });
-        }
-
-        if (loggedInUser.role === "admin") {
-            if (loggedInUserId !== user.user_id) {
-                return res.status(403).send({ message: "Admins can only update their own account." });
-            }
-
-            await user.update({ name, email, username });
-            return res.status(200).send({ message: "Your profile has been updated." });
-        }
-
-        return res.status(403).send({ message: "You do not have permission to perform this action." });
-    } catch (err) {
-        console.error("Update error:", err);
-        res.status(500).send({ message: err.message });
-    }
+    return res.status(403).send({
+      message: "Anda tidak memiliki izin untuk melakukan tindakan ini.",
+    });
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).send({ message: err.message });
+  }
 };
 
 exports.softDeleteUser = async (req, res) => {
-    try {
-      const user = await User.findByPk(req.params.id);
-  
-      if (!user || user.deleted_at) {
-        return res.status(404).send({ message: "User not found." });
-      }
-  
-      await user.update({ deleted_at: new Date() });
-  
-      res.status(200).send({ message: "User soft deleted successfully." });
-    } catch (err) {
-      res.status(500).send({ message: err.message });
+  try {
+    const user = await User.findByPk(req.params.id);
+
+    if (!user || user.deleted_at) {
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
-  };
-  
+
+    await user.update({ deleted_at: new Date() });
+
+    res.status(200).send({ message: "Pengguna berhasil dihapus sementara." });
+  } catch (err) {
+    res.status(500).send({ message: err.message });
+  }
+};
+
+exports.profile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.userId, {
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: db.mosques,
+          as: "mosque",
+          attributes: { exclude: ["createdAt", "updatedAt"] },
+        },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
+    }
+
+    res.status(200).send(user);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).send({ message: "Semua kolom wajib diisi." });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .send({ message: "Kata sandi baru minimal harus 8 karakter." });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res
+        .status(400)
+        .send({ message: "Konfirmasi kata sandi tidak cocok." });
+    }
+
+    const user = await db.user.findByPk(userId);
+    if (!user) {
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
+    }
+
+    const isMatch = bcrypt.compareSync(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).send({ message: "Kata sandi saat ini salah." });
+    }
+
+    user.password = bcrypt.hashSync(newPassword, 8);
+    await user.save();
+
+    res.status(200).send({ message: "Kata sandi berhasil diperbarui." });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};

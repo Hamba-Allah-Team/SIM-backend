@@ -2,22 +2,12 @@
 
 const bcrypt = require('bcryptjs');
 
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    /**
-     * Add seed commands here.
-     *
-     * Example:
-     * await queryInterface.bulkInsert('People', [{
-     *   name: 'John Doe',
-     *   isBetaMember: false
-     * }], {});
-    */
+  up: async (queryInterface, Sequelize) => {
     const hashedPassword1 = await bcrypt.hash('password123', 10);
-    const hashedPassword2 = await bcrypt.hash('admin456', 10);
+    const hashedPassword2 = await bcrypt.hash('superadmin', 10);
 
-    return queryInterface.bulkInsert('users', [
+    await queryInterface.bulkInsert('users', [
       {
         mosque_id: 1,
         email: 'admin@alhikmah.com',
@@ -26,6 +16,10 @@ module.exports = {
         name: 'Admin Al-Hikmah',
         role: 'admin',
         status: 'active',
+        password_reset_code: null,
+        password_reset_expires_at: null,
+        expired_at: null,
+        deleted_at: null,
         created_at: new Date(),
         updated_at: new Date()
       },
@@ -33,10 +27,14 @@ module.exports = {
         mosque_id: 2,
         email: 'admin@annur.com',
         username: 'admin_annur',
-        password: hashedPassword2,
+        password: hashedPassword1,
         name: 'Admin An-Nur',
         role: 'admin',
         status: 'active',
+        password_reset_code: null,
+        password_reset_expires_at: null,
+        expired_at: null,
+        deleted_at: null,
         created_at: new Date(),
         updated_at: new Date()
       },
@@ -48,19 +46,17 @@ module.exports = {
         name: 'Superadmin1',
         role: 'superadmin',
         status: 'active',
+        password_reset_code: null,
+        password_reset_expires_at: null,
+        expired_at: null,
+        deleted_at: null,
         created_at: new Date(),
         updated_at: new Date()
       }
     ]);
   },
 
-  async down(queryInterface, Sequelize) {
-    /**
-     * Add commands to revert seed here.
-     *
-     * Example:
-     * await queryInterface.bulkDelete('People', null, {});
-     */
-    return queryInterface.bulkDelete('users', null, {});
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkDelete('users', null, {});
   }
 };
