@@ -1,6 +1,6 @@
 const { verifyToken } = require("../middleware/auth.middleware");
-const upload = require("../middleware/upload.middleware"); // Import multer middleware
-const contentController = require("../controllers/content.controller");
+const upload = require("../middleware/upload.middleware"); // multer middleware
+const aboutController = require("../controllers/about.controller");
 
 module.exports = function (app) {
   app.use(function (req, res, next) {
@@ -11,29 +11,17 @@ module.exports = function (app) {
     next();
   });
 
-  // Route admin dengan upload middleware
-  app.post(
-    "/api/content",
-    verifyToken,
-    upload.single("image"), // field name harus "image"
-    contentController.createContent
-  );
-
+  // Routes untuk admin dengan upload middleware (untuk update termasuk upload gambar)
   app.put(
-    "/api/content/:id",
+    "/api/about",
     verifyToken,
-    upload.single("image"), // field name harus "image"
-    contentController.updateContent
+    upload.single("image"), // pastikan field upload bernama 'image'
+    aboutController.updateAbout
   );
 
-  app.get("/api/content", verifyToken, contentController.getContents);
-  app.get("/api/content/:id", verifyToken, contentController.getContentById);
-  app.delete("/api/content/:id", verifyToken, contentController.deleteContent);
+  // Routes untuk guest (tanpa autentikasi)
+  app.get("/api/about/guest/:mosque_id", aboutController.getAboutByMosqueId);
 
-  // Guest routes
-  app.get("/api/guest/content/:mosque_id", contentController.getPublicContents);
-  app.get(
-    "/api/guest/content/:mosque_id/:id",
-    contentController.getPublicContentById
-  );
+  // Routes untuk user terautentikasi (tanpa upload)
+  app.get("/api/about", verifyToken, aboutController.getAbout);
 };
