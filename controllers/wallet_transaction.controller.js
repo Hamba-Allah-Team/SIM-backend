@@ -6,19 +6,24 @@ const { recalculateWalletBalances } = require("../utils/finance");
 
 exports.createTransaction = async (req, res) => {
     try {
-        const wallet_id = parseInt(req.params.walletId);
         const {
+            wallet_id,
             amount,
             transaction_type,
             source_or_usage,
-            transaction_date
+            transaction_date,
         } = req.body;
 
         const user_id = req.userId;
 
+        // Validasi input dasar
+        if (!wallet_id || !amount || !transaction_type || !transaction_date) {
+            return res.status(400).json({ message: "Semua field wajib diisi." });
+        }
+
         const amountNumber = Number(amount);
         if (isNaN(amountNumber) || amountNumber <= 0) {
-            return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
+            return res.status(400).json({ message: "Nominal tidak valid. Harus lebih dari 0." });
         }
 
         const transaction = await WalletTransactions.create({
@@ -27,18 +32,58 @@ exports.createTransaction = async (req, res) => {
             transaction_type,
             source_or_usage,
             transaction_date,
-            balance: 0,
-            user_id
+            balance: 0, // tetap 0, akan diatur oleh logika saldo yang sudah ada
+            user_id,
         });
 
+        // Jalankan perhitungan saldo jika memang perlu, tanpa mengubah logikanya
         await recalculateWalletBalances(wallet_id);
 
-        res.status(201).json(transaction);
+        // Ambil ulang transaksi yang baru dibuat, agar dapat balance yang sudah diperbarui
+        const updatedTransaction = await WalletTransactions.findByPk(transaction.transaction_id);
+
+        res.status(201).json(updatedTransaction);
     } catch (error) {
         console.error("Error creating transaction:", error);
-        res.status(500).json({ message: "Failed to create transaction" });
+        res.status(500).json({ message: "Gagal menambahkan transaksi" });
     }
 };
+
+// exports.createTransaction = async (req, res) => {
+//     try {
+//         const wallet_id = parseInt(req.params.walletId);
+//         const {
+//             amount,
+//             transaction_type,
+//             source_or_usage,
+//             transaction_date
+//         } = req.body;
+
+//         const user_id = req.userId;
+
+//         const amountNumber = Number(amount);
+//         if (isNaN(amountNumber) || amountNumber <= 0) {
+//             return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
+//         }
+
+//         const transaction = await WalletTransactions.create({
+//             wallet_id,
+//             amount: amountNumber,
+//             transaction_type,
+//             source_or_usage,
+//             transaction_date,
+//             balance: 0,
+//             user_id
+//         });
+
+//         await recalculateWalletBalances(wallet_id);
+
+//         res.status(201).json(transaction);
+//     } catch (error) {
+//         console.error("Error creating transaction:", error);
+//         res.status(500).json({ message: "Failed to create transaction" });
+//     }
+// };
 
 exports.getAllTransactions = async (req, res) => {
     try {
