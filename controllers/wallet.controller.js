@@ -45,6 +45,40 @@ exports.getAllWallets = async (req, res) => {
     }
 };
 
+// 📤 GET wallets by mosque ID
+exports.getWalletsByMosqueId = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosqueId;
+
+        const wallets = await Wallet.findAll({
+            where: { mosque_id: mosqueId }
+        });
+
+        res.json(wallets);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// exports.getWalletsByMosqueId = async (req, res) => {
+//     try {
+//         const mosque_id = req.userId.mosque_id; // Ambil dari user yang sedang login
+
+//         if (!mosque_id) {
+//             return res.status(400).json({ error: "Mosque ID tidak tersedia di token." });
+//         }
+
+//         const wallets = await Wallet.findAll({
+//             where: { mosque_id }
+//         });
+
+//         res.json(wallets);
+//     } catch (error) {
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
+
 // 📄 GET wallet by ID
 exports.getWalletById = async (req, res) => {
     try {
