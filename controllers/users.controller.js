@@ -1,8 +1,7 @@
 const db = require("../models");
 const User = db.user;
-const { Op } = require("sequelize");
+const bcrypt = require("bcryptjs");
 
-// READ with sort, filter, pagination
 exports.getUsers = async (req, res) => {
   try {
     const {
@@ -16,29 +15,33 @@ exports.getUsers = async (req, res) => {
     } = req.query;
     const offset = (page - 1) * limit;
 
-    const where = {
-      deleted_at: null,
-    };
-
+    const where = { deleted_at: null };
     if (status) where.status = status;
+    if (role) where.role = role;
     if (search) {
-      where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
-        { username: { [Op.iLike]: `%${search}%` } },
+      where[db.Sequelize.Op.or] = [
+        { name: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { email: { [db.Sequelize.Op.iLike]: `%${search}%` } },
+        { username: { [db.Sequelize.Op.iLike]: `%${search}%` } },
       ];
     }
 
     const validSortFields = ["created_at", "username", "name", "email"];
     const orderField = validSortFields.includes(sortBy) ? sortBy : "created_at";
 
-    const order = [[orderField, sortOrder]];
-
     const users = await User.findAndCountAll({
       where,
-      order,
+      order: [[orderField, sortOrder]],
       limit: parseInt(limit),
       offset: parseInt(offset),
+      include: [
+        {
+          model: db.mosques,
+          as: "mosque",
+          attributes: { exclude: ["createdAt", "updatedAt"] },
+        },
+      ],
+      attributes: { exclude: ["password"] },
     });
 
     res.status(200).send({
@@ -56,7 +59,7 @@ exports.updateUser = async (req, res) => {
     const loggedInUserId = req.userId;
     const targetUserId = req.params.id;
 
-    const { name, email, username, status, role, expired_at } = req.body;
+    const { name, email, username, status, role } = req.body;
 
     if (!name || !email || !username) {
       return res
@@ -64,7 +67,9 @@ exports.updateUser = async (req, res) => {
         .send({ message: "Nama, email, dan username wajib diisi." });
     }
 
-    const user = await User.findByPk(targetUserId);
+    const user = await User.findByPk(targetUserId, {
+      include: [{ model: db.mosques, as: "mosque" }],
+    });
     if (!user || user.deleted_at) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
@@ -75,7 +80,8 @@ exports.updateUser = async (req, res) => {
     }
 
     if (loggedInUser.role === "superadmin") {
-      await user.update({ name, email, username, status, role, expired_at });
+      await user.update({ name, email, username, status, role});
+
       return res
         .status(200)
         .send({ message: "Pengguna berhasil diperbarui oleh superadmin." });
@@ -87,11 +93,8 @@ exports.updateUser = async (req, res) => {
           message: "Admin hanya dapat memperbarui akun miliknya sendiri.",
         });
       }
-
       await user.update({ name, email, username });
-      return res
-        .status(200)
-        .send({ message: "Profil Anda berhasil diperbarui." });
+      return res.status(200).send({ message: "Profil Anda berhasil diperbarui." });
     }
 
     return res.status(403).send({
@@ -103,22 +106,30 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-exports.softDeleteUser = async (req, res) => {
+exports.profile = async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const user = await User.findByPk(req.userId, {
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: db.mosques,
+          as: "mosque",
+          attributes: { exclude: ["createdAt", "updatedAt"] },
+        },
+      ],
+    });
 
-    if (!user || user.deleted_at) {
+    if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
 
-    await user.update({ deleted_at: new Date() });
-
-    res.status(200).send({ message: "Pengguna berhasil dihapus sementara." });
-  } catch (err) {
-    res.status(500).send({ message: err.message });
+    res.status(200).send(user);
+  } catch (error) { 
+    res.status(500).send({ message: error.message });
   }
 };
 
+// PROFILE with mosque included
 exports.profile = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
@@ -179,5 +190,21 @@ exports.changePassword = async (req, res) => {
     res.status(200).send({ message: "Kata sandi berhasil diperbarui." });
   } catch (error) {
     res.status(500).send({ message: error.message });
+  }
+};
+
+exports.softDeleteUser = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+
+    if (!user || user.deleted_at) {
+      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
+    }
+
+    await user.update({ deleted_at: new Date() });
+
+    res.status(200).send({ message: "Pengguna berhasil dihapus sementara." });
+  } catch (err) {
+    res.status(500).send({ message: err.message });
   }
 };
