@@ -42,19 +42,28 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
+        // Mendapatkan user_id dari req.userId setelah verifikasi token
+        const userId = req.userId;
+
+        // Mendapatkan parameter includeDeleted dari query
         const includeDeleted = req.query.includeDeleted === 'true';
 
+        // Query untuk mencari transaksi berdasarkan user_id
         const transactions = await WalletTransactions.findAll({
-            paranoid: !includeDeleted,
-            order: [['transaction_date', 'DESC']]
+            where: {
+                user_id: userId,  // Hanya transaksi milik user dengan userId yang terverifikasi
+            },
+            paranoid: !includeDeleted,  // Memperhitungkan transaksi yang sudah dihapus
+            order: [['transaction_date', 'DESC']],  // Mengurutkan transaksi berdasarkan tanggal secara menurun
         });
 
-        res.json(transactions);
+        res.json(transactions);  // Mengembalikan data transaksi dalam format JSON
     } catch (error) {
         console.error("Error retrieving transactions:", error);
         res.status(500).json({ message: "Failed to retrieve transactions" });
     }
 };
+
 
 exports.getTransactionById = async (req, res) => {
     try {
