@@ -14,6 +14,7 @@ module.exports = function (app) {
     // Routes untuk Wallet
     app.post("/api/wallets", verifyToken, walletController.createWallet);
     app.get("/api/wallets", verifyToken, walletController.getAllWallets);
+    app.get("/api/wallets/:mosqueId", verifyToken, walletController.getWalletsByMosqueId);
     app.get("/api/wallets/:id", verifyToken, walletController.getWalletById);
     app.put("/api/wallets/:id", verifyToken, walletController.updateWallet);
     app.delete("/api/wallets/:id", verifyToken, walletController.deleteWallet);
