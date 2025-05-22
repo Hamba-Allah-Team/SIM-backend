@@ -3,52 +3,48 @@ const Content = db.contents;
 const { Op } = require("sequelize");
 
 // Validasi format gambar
-const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg']; // Format gambar yang diterima
+const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 
-// Fungsi untuk validasi ekstensi gambar
-const isValidImage = (image) => {
-  return validImageTypes.includes(image.mimetype); // Memeriksa apakah tipe file gambar sesuai dengan yang diizinkan
+const isValidImage = (file) => {
+  return file && validImageTypes.includes(file.mimetype);
 };
 
 // CREATE a new content
 exports.createContent = async (req, res) => {
   try {
-    const { title, content_description, image, published_date, contents_type } = req.body;
+    const { title, content_description, published_date, contents_type } = req.body;
 
-    // Mendapatkan user_id dari request setelah verifikasi token
     const user_id = req.userId;
     const user = await db.user.findByPk(user_id);
-    if (!user) {
-      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
-    }
+    if (!user) return res.status(404).send({ message: "Pengguna tidak ditemukan." });
 
-    const mosque_id = user.mosque_id; // Ambil mosque_id dari data user
+    const mosque_id = user.mosque_id;
 
-    // Cek apakah semua data yang dibutuhkan sudah ada
     if (!title || !published_date || !contents_type) {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
 
-    // Validasi format gambar menggunakan if-else
-    if (image) {
-      if (!isValidImage(image)) {
-         return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
-      }
+    // Validasi dan ambil file image dari req.file
+    if (!req.file) {
+      return res.status(400).send({ message: "Image wajib diupload." });
+    }
+    if (!isValidImage(req.file)) {
+      return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
     }
 
     const content = await Content.create({
       title,
       content_description,
-      image: image || null,
+      image: req.file.filename,
       published_date,
       contents_type,
       user_id,
-      mosque_id // Menambahkan mosque_id secara otomatis
+      mosque_id,
     });
 
     res.status(201).send({
       message: "Artikel berhasil dibuat.",
-      data: content
+      data: content,
     });
   } catch (err) {
     console.error("Error saat membuat artikel:", err);
@@ -60,51 +56,47 @@ exports.createContent = async (req, res) => {
 exports.updateContent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, content_description, image, published_date, contents_type } = req.body;
+    const { title, content_description, published_date, contents_type } = req.body;
 
-    // Mendapatkan user_id dari request setelah verifikasi token
     const user_id = req.userId;
     const user = await db.user.findByPk(user_id);
-    if (!user) {
-      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
-    }
+    if (!user) return res.status(404).send({ message: "Pengguna tidak ditemukan." });
 
-    const mosque_id = user.mosque_id; // Ambil mosque_id dari data user
+    const mosque_id = user.mosque_id;
 
     if (!title || !published_date || !contents_type) {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
 
     const article = await Content.findByPk(id);
+    if (!article) return res.status(404).send({ message: "Artikel tidak ditemukan." });
 
-    if (!article) {
-      return res.status(404).send({ message: "Artikel tidak ditemukan." });
-    }
-
-    // Pastikan artikel ini milik masjid yang sesuai dengan user yang login
     if (article.mosque_id !== mosque_id) {
       return res.status(403).send({ message: "Anda tidak memiliki izin untuk mengedit artikel ini." });
     }
 
-    // Validasi format gambar menggunakan if-else
-    if (image) {
-      if (!isValidImage(image)) {
+    // Jika ada file image baru yang diupload, validasi dan gunakan filename baru
+    let imageFilename = article.image; // default pakai image lama
+    if (req.file) {
+      if (!isValidImage(req.file)) {
         return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
       }
+      imageFilename = req.file.filename;
     }
 
     await article.update({
       title,
       content_description,
-      image,
+      image: imageFilename,
       published_date,
       contents_type,
       user_id,
-      mosque_id // Memastikan mosque_id tetap sama
+      mosque_id,
     });
 
-    res.status(200).send({ message: "Artikel berhasil diperbarui." });
+    res.status(200).send({ message: "Artikel berhasil diperbarui.", data: article });
   } catch (err) {
+    console.error("Error saat memperbarui artikel:", err);
     res.status(500).send({ message: "Terjadi kesalahan saat memperbarui artikel." });
   }
 };

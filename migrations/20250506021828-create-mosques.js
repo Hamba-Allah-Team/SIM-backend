@@ -17,6 +17,8 @@ module.exports = {
       email: Sequelize.STRING,
       facebook: Sequelize.STRING,
       instagram: Sequelize.STRING,
+      longitude: Sequelize.FLOAT,
+      latitude: Sequelize.FLOAT,
       created_at: {
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('NOW()')
