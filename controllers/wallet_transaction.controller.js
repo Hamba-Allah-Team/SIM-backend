@@ -257,24 +257,33 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
 
+        // Ambil semua wallet dengan transaksi terakhir sekaligus
         const wallets = await Wallets.findAll({
-            where: { mosque_id: mosqueId }
+            where: { mosque_id: mosqueId },
+            include: [
+                {
+                    model: WalletTransactions,
+                    as: 'transactions',
+                    attributes: ['balance', 'transaction_date', 'transaction_id'],
+                    order: [
+                        ['transaction_date', 'DESC'],
+                        ['transaction_id', 'DESC']
+                    ],
+                    limit: 1,
+                    separate: true  // lakukan subquery per wallet untuk transaksi terakhir
+                }
+            ]
         });
 
-        const result = await Promise.all(wallets.map(async (wallet) => {
-            const latestTransaction = await WalletTransactions.findOne({
-                where: { wallet_id: wallet.wallet_id },
-                order: [['transaction_date', 'DESC']],
-                attributes: ['balance']
-            });
-
+        const result = wallets.map(wallet => {
+            const latestTransaction = wallet.transactions[0];
             return {
                 wallet_id: wallet.wallet_id,
                 mosque_id: wallet.mosque_id,
                 wallet_type: wallet.wallet_type,
                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
             };
-        }));
+        });
 
         res.json(result);
     } catch (error) {
@@ -282,6 +291,36 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
     }
 };
+
+// exports.getWalletsByMosqueWithBalance = async (req, res) => {
+//     try {
+//         const mosqueId = req.params.mosqueId;
+
+//         const wallets = await Wallets.findAll({
+//             where: { mosque_id: mosqueId }
+//         });
+
+//         const result = await Promise.all(wallets.map(async (wallet) => {
+//             const latestTransaction = await WalletTransactions.findOne({
+//                 where: { wallet_id: wallet.wallet_id },
+//                 order: [['transaction_date', 'DESC']],
+//                 attributes: ['balance']
+//             });
+
+//             return {
+//                 wallet_id: wallet.wallet_id,
+//                 mosque_id: wallet.mosque_id,
+//                 wallet_type: wallet.wallet_type,
+//                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
+//             };
+//         }));
+
+//         res.json(result);
+//     } catch (error) {
+//         console.error("Error fetching wallets by mosque with balances:", error);
+//         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
+//     }
+// };
 
 exports.getPublicSummary = async (req, res) => {
     try {
