@@ -62,7 +62,7 @@ exports.createRoom = async (req, res) => {
 
 exports.getRooms = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = "", order = "ASC" } = req.query;
+        const { page = 1, limit = 10, search = "", order = "DESC" } = req.query;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -171,8 +171,8 @@ exports.updateRoom = async (req, res) => {
             }
         });
 
-        if (existingRoom) {
-            return res.status(400).json({ message: "Room already exists" });
+        if (!existingRoom) {
+            return res.status(404).json({ message: "Ruangan tidak ditemukan." });
         }
 
         // Update ruangan
@@ -188,8 +188,8 @@ exports.updateRoom = async (req, res) => {
             }
         });
 
-        if (!updatedRoom[0]) {
-            return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+        if (!updatedRoom) {
+            return res.status(404).json({ message: "Ruangan tidak ditemukan." });
         }
 
         res.status(200).send({
