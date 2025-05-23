@@ -12,7 +12,7 @@ module.exports = {
       CREATE TYPE contents_type_enum AS ENUM ('artikel', 'berita');
     `);
     await queryInterface.sequelize.query(`
-      CREATE TYPE wallet_type_enum AS ENUM ('cash', 'bank');
+      CREATE TYPE wallet_type_enum AS ENUM ('cash', 'bank', 'ewallet', 'other');
     `);
     await queryInterface.sequelize.query(`
       CREATE TYPE transaction_type_enum AS ENUM ('income', 'expense');
