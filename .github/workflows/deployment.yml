@@ -19,7 +19,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         repository: Hamba-Allah-Team/SIM-backend
-        token: ${{ secrets.SSH_PRIVATE_KEY }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         path: SIM-backend
 
     - name: Set up Docker
