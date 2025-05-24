@@ -5,15 +5,32 @@
 
 trigger:
 - main
+- develop
+
+resources:
+  repositories:
+    - repository: SIM-backend
+      type: github
+      name: Hamba-Allah-Team/SIM-backend
+      endpoint: Hamba-Allah-Team
 
 pool:
   vmImage: ubuntu-latest
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+  - checkout: SIM-backend
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  - task: DockerInstaller@0
+    displayName: 'Install Docker (if needed)'
+    inputs:
+      dockerVersion: 'latest'
+
+  - script: |
+      echo "Build Docker image using docker compose"
+      docker compose -f docker-compose.yml build
+    displayName: 'Build Docker Images'
+
+  - script: |
+      echo "Start services with docker compose"
+      docker compose -f docker-compose.yml up -d
+    displayName: 'Run Docker Containers'
