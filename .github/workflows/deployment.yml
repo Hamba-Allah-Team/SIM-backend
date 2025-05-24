@@ -36,3 +36,25 @@ jobs:
         echo "Start services with docker compose"
         docker compose -f docker-compose.yml up -d
       working-directory: SIM-backend  
+
+    - name: Deploy to Server via SSH
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        script: |
+          BRANCH=${{ github.ref_name }}
+          
+          echo "Deploying branch $BRANCH ..."
+          cd /home/pbluser/codes/SIM-backend
+          git fetch origin
+          git checkout $BRANCH
+          git pull origin $BRANCH
+
+          echo "stopping old container"
+          docker compose down
+
+          echo "Rebuilding and running containers..."
+          docker compose up -d --build
