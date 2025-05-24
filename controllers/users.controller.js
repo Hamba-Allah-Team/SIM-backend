@@ -1,6 +1,7 @@
 const db = require("../models");
 const User = db.user;
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcryptjs"); 
+const moment = require("moment");
 
 exports.getUsers = async (req, res) => {
   try {
@@ -50,6 +51,7 @@ exports.getUsers = async (req, res) => {
       users: users.rows,
     });
   } catch (err) {
+    console.error("Error fetching users:", err);
     res.status(500).send({ message: err.message });
   }
 };
@@ -76,24 +78,23 @@ exports.updateUser = async (req, res) => {
 
     const loggedInUser = await User.findByPk(loggedInUserId);
     if (!loggedInUser) {
-      return res.status(403).send({ message: "Tidak diizinkan." });
+      return res.status(403).send({ message: "Tidak diizinkan (pengguna tidak valid)." });
     }
 
     if (loggedInUser.role === "superadmin") {
-      await user.update({ name, email, username, status, role});
-
+      await user.update({ name, email, username, status, role });
       return res
         .status(200)
         .send({ message: "Pengguna berhasil diperbarui oleh superadmin." });
     }
 
     if (loggedInUser.role === "admin") {
-      if (loggedInUserId !== user.user_id) {
+      if (loggedInUserId.toString() !== user.user_id.toString()) { 
         return res.status(403).send({
           message: "Admin hanya dapat memperbarui akun miliknya sendiri.",
         });
       }
-      await user.update({ name, email, username });
+      await user.update({ name, email, username }); 
       return res.status(200).send({ message: "Profil Anda berhasil diperbarui." });
     }
 
@@ -124,31 +125,8 @@ exports.profile = async (req, res) => {
     }
 
     res.status(200).send(user);
-  } catch (error) { 
-    res.status(500).send({ message: error.message });
-  }
-};
-
-// PROFILE with mosque included
-exports.profile = async (req, res) => {
-  try {
-    const user = await User.findByPk(req.userId, {
-      attributes: { exclude: ["password"] },
-      include: [
-        {
-          model: db.mosques,
-          as: "mosque",
-          attributes: { exclude: ["createdAt", "updatedAt"] },
-        },
-      ],
-    });
-
-    if (!user) {
-      return res.status(404).send({ message: "Pengguna tidak ditemukan." });
-    }
-
-    res.status(200).send(user);
   } catch (error) {
+    console.error("Error fetching profile:", error);
     res.status(500).send({ message: error.message });
   }
 };
@@ -174,7 +152,7 @@ exports.changePassword = async (req, res) => {
         .send({ message: "Konfirmasi kata sandi tidak cocok." });
     }
 
-    const user = await db.user.findByPk(userId);
+    const user = await User.findByPk(userId); 
     if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
@@ -189,6 +167,7 @@ exports.changePassword = async (req, res) => {
 
     res.status(200).send({ message: "Kata sandi berhasil diperbarui." });
   } catch (error) {
+    console.error("Error changing password:", error);
     res.status(500).send({ message: error.message });
   }
 };
@@ -205,6 +184,99 @@ exports.softDeleteUser = async (req, res) => {
 
     res.status(200).send({ message: "Pengguna berhasil dihapus sementara." });
   } catch (err) {
+    console.error("Error soft deleting user:", err);
     res.status(500).send({ message: err.message });
+  }
+};
+exports.getAdminActivityTrend = async (req, res) => {
+  try {
+    const { period } = req.query;
+    let startDate;
+    let endDate = moment().endOf('day');
+    let groupByAttribute;
+    let granularity;
+
+    switch (period) {
+      case "7d":
+        startDate = moment().subtract(6, "days").startOf('day');
+        groupByAttribute = [db.Sequelize.fn('DATE_TRUNC', 'day', db.Sequelize.col('created_at')), 'date_group'];
+        granularity = 'day';
+        break;
+      case "30d":
+        startDate = moment().subtract(29, "days").startOf('day');
+        groupByAttribute = [db.Sequelize.fn('DATE_TRUNC', 'day', db.Sequelize.col('created_at')), 'date_group'];
+        granularity = 'day';
+        break;
+      case "12m":
+        startDate = moment().subtract(11, "months").startOf('month');
+        groupByAttribute = [db.Sequelize.fn('DATE_TRUNC', 'month', db.Sequelize.col('created_at')), 'date_group'];
+        granularity = 'month';
+        break;
+      default:
+        return res.status(400).send({ message: "Periode tidak valid." });
+    }
+
+    const trendData = await User.findAll({
+      attributes: [
+        groupByAttribute,
+        [db.Sequelize.fn('COUNT', db.Sequelize.col('user_id')), 'activeCount'],
+      ],
+      where: {
+        role: 'admin',
+        status: 'active',
+        deleted_at: null,
+        created_at: {
+          [db.Sequelize.Op.gte]: startDate.toDate(),
+          [db.Sequelize.Op.lte]: endDate.toDate(),
+        },
+      },
+      group: [db.Sequelize.col('date_group')],
+      order: [[db.Sequelize.col('date_group'), 'ASC']],
+      raw: true,
+    });
+
+    // Create Indonesian month names mapping
+    const indonesianMonths = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    const resultsMap = new Map();
+    trendData.forEach(item => {
+      const dateKey = moment(item.date_group).format(granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM');
+      resultsMap.set(dateKey, parseInt(item.activeCount, 10));
+    });
+
+    const finalTrend = [];
+    let currentDate = moment(startDate);
+
+    while (currentDate.isSameOrBefore(endDate, granularity)) {
+      const dateKey = currentDate.format(granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM');
+      let label;
+
+      if (granularity === 'day') {
+        // Format for day view: "DD MMM" (e.g., "01 Jan")
+        label = currentDate.format('DD MMM');
+      } else {
+        // Format for month view: Full month name (e.g., "Januari")
+        const monthIndex = currentDate.month();
+        label = indonesianMonths[monthIndex];
+      }
+
+      finalTrend.push({
+        date: label,
+        active: resultsMap.get(dateKey) || 0,
+      });
+
+      currentDate.add(1, granularity);
+    }
+
+    res.status(200).send(finalTrend);
+
+  } catch (err) {
+    console.error("Error fetching admin activity trend:", err);
+    res.status(500).send({ 
+      message: err.message || "Terjadi kesalahan internal saat mengambil data tren." 
+    });
   }
 };
