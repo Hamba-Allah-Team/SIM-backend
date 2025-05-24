@@ -1,0 +1,38 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      with:
+        repository: Hamba-Allah-Team/SIM-backend
+        token: ${{ secrets.GITHUB_TOKEN }}
+        path: SIM-backend
+
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker Images
+      run: |
+        echo "Build Docker image using docker compose"
+        docker compose -f docker-compose.yml build
+      working-directory: SIM-backend
+
+    - name: Run Docker Containers
+      run: |
+        echo "Start services with docker compose"
+        docker compose -f docker-compose.yml up -d
+      working-directory: SIM-backend  
