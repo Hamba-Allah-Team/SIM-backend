@@ -6,19 +6,24 @@ const { recalculateWalletBalances } = require("../utils/finance");
 
 exports.createTransaction = async (req, res) => {
     try {
-        const wallet_id = parseInt(req.params.walletId);
         const {
+            wallet_id,
             amount,
             transaction_type,
             source_or_usage,
-            transaction_date
+            transaction_date,
         } = req.body;
 
         const user_id = req.userId;
 
+        // Validasi input dasar
+        if (!wallet_id || !amount || !transaction_type || !transaction_date) {
+            return res.status(400).json({ message: "Semua field wajib diisi." });
+        }
+
         const amountNumber = Number(amount);
         if (isNaN(amountNumber) || amountNumber <= 0) {
-            return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
+            return res.status(400).json({ message: "Nominal tidak valid. Harus lebih dari 0." });
         }
 
         const transaction = await WalletTransactions.create({
@@ -27,34 +32,83 @@ exports.createTransaction = async (req, res) => {
             transaction_type,
             source_or_usage,
             transaction_date,
-            balance: 0,
-            user_id
+            balance: 0, // tetap 0, akan diatur oleh logika saldo yang sudah ada
+            user_id,
         });
 
+        // Jalankan perhitungan saldo jika memang perlu, tanpa mengubah logikanya
         await recalculateWalletBalances(wallet_id);
 
-        res.status(201).json(transaction);
+        // Ambil ulang transaksi yang baru dibuat, agar dapat balance yang sudah diperbarui
+        const updatedTransaction = await WalletTransactions.findByPk(transaction.transaction_id);
+
+        res.status(201).json(updatedTransaction);
     } catch (error) {
         console.error("Error creating transaction:", error);
-        res.status(500).json({ message: "Failed to create transaction" });
+        res.status(500).json({ message: "Gagal menambahkan transaksi" });
     }
 };
 
+// exports.createTransaction = async (req, res) => {
+//     try {
+//         const wallet_id = parseInt(req.params.walletId);
+//         const {
+//             amount,
+//             transaction_type,
+//             source_or_usage,
+//             transaction_date
+//         } = req.body;
+
+//         const user_id = req.userId;
+
+//         const amountNumber = Number(amount);
+//         if (isNaN(amountNumber) || amountNumber <= 0) {
+//             return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
+//         }
+
+//         const transaction = await WalletTransactions.create({
+//             wallet_id,
+//             amount: amountNumber,
+//             transaction_type,
+//             source_or_usage,
+//             transaction_date,
+//             balance: 0,
+//             user_id
+//         });
+
+//         await recalculateWalletBalances(wallet_id);
+
+//         res.status(201).json(transaction);
+//     } catch (error) {
+//         console.error("Error creating transaction:", error);
+//         res.status(500).json({ message: "Failed to create transaction" });
+//     }
+// };
+
 exports.getAllTransactions = async (req, res) => {
     try {
+        // Mendapatkan user_id dari req.userId setelah verifikasi token
+        const userId = req.userId;
+
+        // Mendapatkan parameter includeDeleted dari query
         const includeDeleted = req.query.includeDeleted === 'true';
 
+        // Query untuk mencari transaksi berdasarkan user_id
         const transactions = await WalletTransactions.findAll({
-            paranoid: !includeDeleted,
-            order: [['transaction_date', 'DESC']]
+            where: {
+                user_id: userId,  // Hanya transaksi milik user dengan userId yang terverifikasi
+            },
+            paranoid: !includeDeleted,  // Memperhitungkan transaksi yang sudah dihapus
+            order: [['transaction_date', 'DESC']],  // Mengurutkan transaksi berdasarkan tanggal secara menurun
         });
 
-        res.json(transactions);
+        res.json(transactions);  // Mengembalikan data transaksi dalam format JSON
     } catch (error) {
         console.error("Error retrieving transactions:", error);
         res.status(500).json({ message: "Failed to retrieve transactions" });
     }
 };
+
 
 exports.getTransactionById = async (req, res) => {
     try {
@@ -203,28 +257,102 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
 
+        // Ambil semua wallet dengan transaksi terakhir sekaligus
         const wallets = await Wallets.findAll({
-            where: { mosque_id: mosqueId }
+            where: { mosque_id: mosqueId },
+            include: [
+                {
+                    model: WalletTransactions,
+                    as: 'transactions',
+                    attributes: ['balance', 'transaction_date', 'transaction_id'],
+                    order: [
+                        ['transaction_date', 'DESC'],
+                        ['transaction_id', 'DESC']
+                    ],
+                    limit: 1,
+                    separate: true  // lakukan subquery per wallet untuk transaksi terakhir
+                }
+            ]
         });
 
-        const result = await Promise.all(wallets.map(async (wallet) => {
-            const latestTransaction = await WalletTransactions.findOne({
-                where: { wallet_id: wallet.wallet_id },
-                order: [['transaction_date', 'DESC']],
-                attributes: ['balance']
-            });
-
+        const result = wallets.map(wallet => {
+            const latestTransaction = wallet.transactions[0];
             return {
                 wallet_id: wallet.wallet_id,
                 mosque_id: wallet.mosque_id,
                 wallet_type: wallet.wallet_type,
                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
             };
-        }));
+        });
 
         res.json(result);
     } catch (error) {
         console.error("Error fetching wallets by mosque with balances:", error);
         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
+    }
+};
+
+// exports.getWalletsByMosqueWithBalance = async (req, res) => {
+//     try {
+//         const mosqueId = req.params.mosqueId;
+
+//         const wallets = await Wallets.findAll({
+//             where: { mosque_id: mosqueId }
+//         });
+
+//         const result = await Promise.all(wallets.map(async (wallet) => {
+//             const latestTransaction = await WalletTransactions.findOne({
+//                 where: { wallet_id: wallet.wallet_id },
+//                 order: [['transaction_date', 'DESC']],
+//                 attributes: ['balance']
+//             });
+
+//             return {
+//                 wallet_id: wallet.wallet_id,
+//                 mosque_id: wallet.mosque_id,
+//                 wallet_type: wallet.wallet_type,
+//                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
+//             };
+//         }));
+
+//         res.json(result);
+//     } catch (error) {
+//         console.error("Error fetching wallets by mosque with balances:", error);
+//         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
+//     }
+// };
+
+exports.getPublicSummary = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosqueId;
+
+        // Ambil semua wallet milik mosque tertentu
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: ['wallet_id']
+        });
+
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        // Hitung total income dan expense dari semua transaksi aktif (non-soft-deleted)
+        const [result] = await db.sequelize.query(`
+            SELECT 
+                SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS total_income,
+                SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) AS total_expense
+            FROM wallet_transactions
+            WHERE wallet_id IN (:walletIds) AND deleted_at IS NULL
+        `, {
+            replacements: { walletIds },
+            type: db.Sequelize.QueryTypes.SELECT
+        });
+
+        res.json({
+            total_income: parseFloat(result.total_income || 0),
+            total_expense: parseFloat(result.total_expense || 0)
+        });
+
+    } catch (error) {
+        console.error("Error generating public summary:", error);
+        res.status(500).json({ message: "Failed to fetch public financial summary" });
     }
 };

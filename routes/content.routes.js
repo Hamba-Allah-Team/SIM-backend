@@ -1,4 +1,5 @@
 const { verifyToken } = require("../middleware/auth.middleware");
+const upload = require("../middleware/upload.middleware"); // Import multer middleware
 const contentController = require("../controllers/content.controller");
 
 module.exports = function (app) {
@@ -10,15 +11,29 @@ module.exports = function (app) {
     next();
   });
 
-  // Content routes admin
-  app.post("/api/content", verifyToken, contentController.createContent); // Menambah konten, memerlukan verifikasi token
-  app.get("/api/content", verifyToken, contentController.getContents); // Menampilkan daftar konten (dengan sorting dan search)
-  app.get("/api/content/:id", verifyToken, contentController.getContentById); // Menampilkan detail konten berdasarkan ID
-  app.put("/api/content/:id", verifyToken, contentController.updateContent); // Mengedit konten, memerlukan verifikasi token
-  app.delete("/api/content/:id", verifyToken, contentController.deleteContent); // Menghapus konten, memerlukan verifikasi token
+  // Route admin dengan upload middleware
+  app.post(
+    "/api/content",
+    verifyToken,
+    upload.single("image"), // field name harus "image"
+    contentController.createContent
+  );
 
-  //content routes guest
-  app.get("/api/content/guest/:mosque_id", contentController.getPublicContents); // Ambil semua konten publik berdasarkan mosque_id
-  app.get("/api/content/guest/:mosque_id/:id", contentController.getPublicContentById); // Ambil 1 konten publik berdasarkan mosque_id dan id
+  app.put(
+    "/api/content/:id",
+    verifyToken,
+    upload.single("image"), // field name harus "image"
+    contentController.updateContent
+  );
 
+  app.get("/api/content", verifyToken, contentController.getContents);
+  app.get("/api/content/:id", verifyToken, contentController.getContentById);
+  app.delete("/api/content/:id", verifyToken, contentController.deleteContent);
+
+  // Guest routes
+  app.get("/api/guest/content/:mosque_id", contentController.getPublicContents);
+  app.get(
+    "/api/guest/content/:mosque_id/:id",
+    contentController.getPublicContentById
+  );
 };
