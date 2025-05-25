@@ -35,9 +35,9 @@ services:
     command: > 
       sh -c "
         /wait-for-it.sh db:${DB_PORT} --timeout-30 --strict -- \ 
-        npm sequelize db:migrate:undo:all && 
-        npm sequelize db:migrate && 
-        npm sequelize db:seed:all && 
+        npm run sequelize db:migrate:undo:all && 
+        npm run sequelize db:migrate && 
+        npm run sequelize db:seed:all && 
         npm start
       "
     networks:
