@@ -25,7 +25,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    transaction_number: {
+    password: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    proof_number: {
       type: DataTypes.STRING,
       allowNull: false,
     },
