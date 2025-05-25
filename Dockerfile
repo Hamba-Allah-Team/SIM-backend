@@ -8,7 +8,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install -- --no-lint
+RUN npm install
 
 # Salin semua file lainnya
 COPY . .
