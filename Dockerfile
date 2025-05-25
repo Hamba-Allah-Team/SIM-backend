@@ -12,9 +12,11 @@ RUN npm install
 
 # Salin semua file lainnya
 COPY . .
+ADD wait-for-it.sh /wait-for-it.sh
+RUN chmod +x /wait-for-it.sh
 
 # Expose port aplikasi Express.js
 EXPOSE 3000
 
 # Jalankan aplikasi saat container dijalankan
-CMD ["npm", "start"]
+CMD ["sh", "-c", "/wait-for-it.sh db:5432 --timeout=30 --strict -- npm start"]

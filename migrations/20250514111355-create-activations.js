@@ -36,11 +36,15 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
+      password: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
       email: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      transaction_number: {
+      proof_number: {
         type: Sequelize.STRING,
         allowNull: false,
       },

@@ -1,28 +1,30 @@
 'use strict';
 
+const bcrypt = require('bcryptjs');
+
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // First get all users data
+    const saltRounds = 10;
+
     const users = await queryInterface.sequelize.query(
       'SELECT user_id, mosque_id, username, email, name FROM users;',
       { type: queryInterface.sequelize.QueryTypes.SELECT }
     );
 
-    // Create a map of user_id to user data for easy lookup
     const userMap = {};
     users.forEach(user => {
-      userMap[user.id] = user;
+      userMap[user.user_id] = user;
     });
 
-    const activations = [
-      // Activation records - use new data
+    const activationsPlain = [
       {
         user_id: 1,
         mosque_id: 1,
         activation_type: 'activation',
         username: 'ahmad_01',
+        password: 'password_ahmad_01',
         email: 'ahmad@example.com',
-        transaction_number: 'TXN-001-2025',
+        proof_number: 'TXN-001-2025',
         proof_image: 'proof1.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Falah',
@@ -42,8 +44,9 @@ module.exports = {
         mosque_id: 3,
         activation_type: 'activation',
         username: 'siti_nur',
+        password: 'password_siti_03',
         email: 'sitinur@example.com',
-        transaction_number: 'TXN-003-2025',
+        proof_number: 'TXN-003-2025',
         proof_image: 'proof3.jpg',
         status: 'pending',
         mosque_name: 'Masjid Nurul Iman',
@@ -63,8 +66,9 @@ module.exports = {
         mosque_id: 5,
         activation_type: 'activation',
         username: 'rina_amelia',
+        password: 'password_rina_05',
         email: 'rina@example.com',
-        transaction_number: 'TXN-005-2025',
+        proof_number: 'TXN-005-2025',
         proof_image: 'proof5.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Hikmah',
@@ -84,8 +88,9 @@ module.exports = {
         mosque_id: 7,
         activation_type: 'activation',
         username: 'dina_sari',
+        password: 'password_dina_07',
         email: 'dina@example.com',
-        transaction_number: 'TXN-007-2025',
+        proof_number: 'TXN-007-2025',
         proof_image: 'proof7.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Amanah',
@@ -105,8 +110,9 @@ module.exports = {
         mosque_id: 9,
         activation_type: 'activation',
         username: 'lina_putri',
+        password: 'password_lina_09',
         email: 'lina@example.com',
-        transaction_number: 'TXN-009-2025',
+        proof_number: 'TXN-009-2025',
         proof_image: 'proof9.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Ma\'ruf',
@@ -126,8 +132,9 @@ module.exports = {
         mosque_id: 11,
         activation_type: 'activation',
         username: 'rani_saputra',
+        password: 'password_rani_11',
         email: 'rani@example.com',
-        transaction_number: 'TXN-011-2025',
+        proof_number: 'TXN-011-2025',
         proof_image: 'proof11.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Mujahidin',
@@ -147,8 +154,9 @@ module.exports = {
         mosque_id: 13,
         activation_type: 'activation',
         username: 'sari_wati',
+        password: 'password_sari_13',
         email: 'sari@example.com',
-        transaction_number: 'TXN-013-2025',
+        proof_number: 'TXN-013-2025',
         proof_image: 'proof13.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Hidayah',
@@ -168,8 +176,9 @@ module.exports = {
         mosque_id: 15,
         activation_type: 'activation',
         username: 'lia_kurnia',
+        password: 'password_lia_15',
         email: 'lia@example.com',
-        transaction_number: 'TXN-015-2025',
+        proof_number: 'TXN-015-2025',
         proof_image: 'proof15.jpg',
         status: 'pending',
         mosque_name: 'Masjid An-Nur',
@@ -189,8 +198,9 @@ module.exports = {
         mosque_id: 16,
         activation_type: 'activation',
         username: 'ali_hakim',
+        password: 'password_ali_16',
         email: 'ali@example.com',
-        transaction_number: 'TXN-016-2025',
+        proof_number: 'TXN-016-2025',
         proof_image: 'proof16.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Mubarok',
@@ -210,8 +220,9 @@ module.exports = {
         mosque_id: 17,
         activation_type: 'activation',
         username: 'nova_putri',
+        password: 'password_nova_17',
         email: 'nova@example.com',
-        transaction_number: 'TXN-017-2025',
+        proof_number: 'TXN-017-2025',
         proof_image: 'proof17.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Ikhlas',
@@ -231,8 +242,9 @@ module.exports = {
         mosque_id: 18,
         activation_type: 'activation',
         username: 'rizky_awan',
+        password: 'password_rizky_18',
         email: 'rizky@example.com',
-        transaction_number: 'TXN-018-2025',
+        proof_number: 'TXN-018-2025',
         proof_image: 'proof18.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Barokah',
@@ -252,8 +264,9 @@ module.exports = {
         mosque_id: 19,
         activation_type: 'activation',
         username: 'tiara_melati',
+        password: 'password_tiara_19',
         email: 'tiara@example.com',
-        transaction_number: 'TXN-019-2025',
+        proof_number: 'TXN-019-2025',
         proof_image: 'proof19.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Mutmainah',
@@ -263,7 +276,7 @@ module.exports = {
         mosque_facebook: 'facebook.com/almutmainah',
         mosque_instagram: 'instagram.com/almutmainah',
         submitted_at: new Date(),
-        approved_at: null,  
+        approved_at: null,
         admin_id: null,
         created_at: new Date(),
         updated_at: new Date(),
@@ -274,8 +287,9 @@ module.exports = {
         mosque_id: userMap[2]?.mosque_id || 2,
         activation_type: 'extension',
         username: userMap[2]?.username || 'admin_annur2',
+        password: 'password_admin2',
         email: userMap[2]?.email || 'admin2@annur.com',
-        transaction_number: 'TXN-002-2025',
+        proof_number: 'TXN-002-2025',
         proof_image: 'proof2.jpg',
         status: 'pending',
         mosque_name: 'Masjid Baitul Hikmah',
@@ -295,8 +309,9 @@ module.exports = {
         mosque_id: userMap[4]?.mosque_id || 4,
         activation_type: 'extension',
         username: userMap[4]?.username || 'admin_annur4',
+        password: 'password_admin4',
         email: userMap[4]?.email || 'admin4@annur.com',
-        transaction_number: 'TXN-004-2025',
+        proof_number: 'TXN-004-2025',
         proof_image: 'proof4.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Muttaqin',
@@ -316,8 +331,9 @@ module.exports = {
         mosque_id: userMap[6]?.mosque_id || 6,
         activation_type: 'extension',
         username: userMap[6]?.username || 'admin_annur6',
+        password: 'password_admin6',
         email: userMap[6]?.email || 'admin6@annur.com',
-        transaction_number: 'TXN-006-2025',
+        proof_number: 'TXN-006-2025',
         proof_image: 'proof6.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Ikhlas',
@@ -337,8 +353,9 @@ module.exports = {
         mosque_id: userMap[8]?.mosque_id || 8,
         activation_type: 'extension',
         username: userMap[8]?.username || 'admin_annur8',
+        password: 'password_admin8',
         email: userMap[8]?.email || 'admin8@annur.com',
-        transaction_number: 'TXN-008-2025',
+        proof_number: 'TXN-008-2025',
         proof_image: 'proof8.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Barokah',
@@ -358,8 +375,9 @@ module.exports = {
         mosque_id: userMap[10]?.mosque_id || 10,
         activation_type: 'extension',
         username: userMap[10]?.username || 'admin_annur10',
+        password: 'password_admin10',
         email: userMap[10]?.email || 'admin10@annur.com',
-        transaction_number: 'TXN-010-2025',
+        proof_number: 'TXN-010-2025',
         proof_image: 'proof10.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Mutmainah',
@@ -379,8 +397,9 @@ module.exports = {
         mosque_id: userMap[12]?.mosque_id || 12,
         activation_type: 'extension',
         username: userMap[12]?.username || 'admin_annur12',
+        password: 'password_admin12',
         email: userMap[12]?.email || 'admin12@annur.com',
-        transaction_number: 'TXN-012-2025',
+        proof_number: 'TXN-012-2025',
         proof_image: 'proof12.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Furqan',
@@ -400,8 +419,9 @@ module.exports = {
         mosque_id: userMap[14]?.mosque_id || 14,
         activation_type: 'extension',
         username: userMap[14]?.username || 'admin_alfalah14',
+        password: 'password_admin14',
         email: userMap[14]?.email || 'admin14@alfalah.com',
-        transaction_number: 'TXN-014-2025',
+        proof_number: 'TXN-014-2025',
         proof_image: 'proof14.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Muttaqin',
@@ -421,8 +441,9 @@ module.exports = {
         mosque_id: userMap[20]?.mosque_id || 20,
         activation_type: 'extension',
         username: userMap[20]?.username || 'admin_alfurqan20',
+        password: 'password_admin20',
         email: userMap[20]?.email || 'admin20@alfurqan.com',
-        transaction_number: 'TXN-020-2025',
+        proof_number: 'TXN-020-2025',
         proof_image: 'proof20.jpg',
         status: 'pending',
         mosque_name: 'Masjid Al-Jihad',
@@ -439,7 +460,18 @@ module.exports = {
       },
     ];
 
-    await queryInterface.bulkInsert('activations', activations);
+    // Hash passwords
+    const activations = await Promise.all(
+      activationsPlain.map(async (activation) => {
+        if (activation.password) {
+          const hashedPassword = await bcrypt.hash(activation.password, 10);
+          return { ...activation, password: hashedPassword };
+        }
+        return activation; 
+      })
+    );
+
+    await queryInterface.bulkInsert('activations', activations, {});
   },
 
   async down(queryInterface, Sequelize) {
