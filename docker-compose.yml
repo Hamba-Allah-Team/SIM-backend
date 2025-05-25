@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     container_name: web_container
     ports:
-      - "${PORT}:3000"
+      - "3000:3000"
     depends_on:
       - db
     command: > 
