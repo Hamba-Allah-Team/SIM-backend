@@ -34,7 +34,7 @@ services:
       - db
     command: > 
       sh -c "
-        .wait-for-it.sh db:${DB_PORT} --timeout-30 --strict -- \ 
+        /wait-for-it.sh db:${DB_PORT} --timeout-30 --strict -- \ 
         npm sequelize db:migrate:undo:all && 
         npm sequelize db:migrate && 
         npm sequelize db:seed:all && 
