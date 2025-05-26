@@ -7,25 +7,39 @@ exports.createWallet = async (req, res) => {
     try {
         const { mosque_id, wallet_type, wallet_name } = req.body;
 
-        if (!wallet_name) {
-            return res.status(400).json({ message: "Wallet name is required." });
+        if (!mosque_id || !wallet_type || !wallet_name) {
+            return res.status(400).json({ message: "mosque_id, wallet_type, and wallet_name are required." });
         }
 
-        if (!wallet_type) {
-            return res.status(400).json({ message: "Wallet type is required." });
-        }
-
-        // Jika tipe cash, pastikan belum ada cash wallet
-        if (wallet_type === "cash") {
+        // Cek jika wallet_type = 'cash', hanya boleh satu per masjid
+        if (wallet_type === 'cash') {
             const existingCash = await Wallet.findOne({
-                where: { mosque_id, wallet_type: "cash" }
+                where: {
+                    mosque_id,
+                    wallet_type: 'cash'
+                }
             });
-
             if (existingCash) {
-                return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
+                return res.status(400).json({
+                    message: "A 'cash' wallet already exists for this mosque."
+                });
             }
         }
 
+        // Cek jika wallet_name sudah ada untuk masjid ini
+        const existingName = await Wallet.findOne({
+            where: {
+                mosque_id,
+                wallet_name
+            }
+        });
+        if (existingName) {
+            return res.status(400).json({
+                message: "A wallet with this name already exists for this mosque."
+            });
+        }
+
+        // Buat wallet baru
         const newWallet = await Wallet.create({
             mosque_id,
             wallet_type,
@@ -33,6 +47,7 @@ exports.createWallet = async (req, res) => {
         });
 
         res.status(201).json(newWallet);
+
     } catch (error) {
         console.error("Error creating wallet:", error);
         res.status(500).json({ error: error.message });
@@ -77,25 +92,40 @@ exports.updateWallet = async (req, res) => {
         if (!wallet) return res.status(404).json({ message: "Wallet not found" });
 
         const newMosqueId = mosque_id ?? wallet.mosque_id;
-        const newWalletType = wallet_type ?? wallet.wallet_type;
 
-        // Jika ingin update jadi 'cash', pastikan tidak duplikat
-        if (newWalletType === "cash" && (wallet.wallet_type !== "cash" || wallet.mosque_id !== newMosqueId)) {
-            const existingCash = await Wallet.findOne({
-                where: {
-                    mosque_id: newMosqueId,
-                    wallet_type: "cash",
-                    wallet_id: { [Op.ne]: walletId }
-                }
-            });
+        // Cek wallet lain milik masjid ini (kecuali wallet ini sendiri)
+        const otherWallets = await Wallet.findAll({
+            where: {
+                mosque_id: newMosqueId,
+                wallet_id: { [db.Sequelize.Op.ne]: walletId }
+            }
+        });
 
-            if (existingCash) {
+        // Validasi jika ingin ubah jadi wallet_type 'cash'
+        if (wallet_type === 'cash' && wallet.wallet_type !== 'cash') {
+            const hasCash = otherWallets.some(w => w.wallet_type === 'cash');
+            if (hasCash) {
                 return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
             }
         }
 
+        // Validasi nama unik (jika ingin diubah)
+        if (wallet_name && wallet_name !== wallet.wallet_name) {
+            const duplicateName = await Wallet.findOne({
+                where: {
+                    mosque_id: newMosqueId,
+                    wallet_name,
+                    wallet_id: { [db.Sequelize.Op.ne]: walletId }
+                }
+            });
+            if (duplicateName) {
+                return res.status(400).json({ message: "A wallet with this name already exists for this mosque." });
+            }
+        }
+
+        // Update data
         wallet.mosque_id = newMosqueId;
-        wallet.wallet_type = newWalletType;
+        wallet.wallet_type = wallet_type ?? wallet.wallet_type;
         wallet.wallet_name = wallet_name ?? wallet.wallet_name;
 
         await wallet.save();
