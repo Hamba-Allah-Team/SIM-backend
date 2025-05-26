@@ -1,4 +1,5 @@
 const { verifyToken } = require("../middleware/auth.middleware");
+const upload = require("../middleware/upload.middleware"); // multer middleware
 const aboutController = require("../controllers/about.controller");
 
 module.exports = function (app) {
@@ -10,12 +11,17 @@ module.exports = function (app) {
     next();
   });
 
-  // Routes untuk admin
-  app.put("/api/about", verifyToken, aboutController.updateAbout); // Update informasi masjid oleh admin
+  // Routes untuk admin dengan upload middleware (untuk update termasuk upload gambar)
+  app.put(
+    "/api/about",
+    verifyToken,
+    upload.single("image"), // pastikan field upload bernama 'image'
+    aboutController.updateAbout
+  );
 
-  // Routes untuk guest
-  app.get("/api/about/guest/:mosque_id", aboutController.getAboutByMosqueId); // Get informasi masjid berdasarkan mosque_id untuk guest
-  
-  // Routes untuk user terautentikasi
-  app.get("/api/about", verifyToken, aboutController.getAbout); // Get informasi masjid untuk user yang terautentikasi
+  // Routes untuk guest (tanpa autentikasi)
+  app.get("/api/about/guest/:mosque_id", aboutController.getAboutByMosqueId);
+
+  // Routes untuk user terautentikasi (tanpa upload)
+  app.get("/api/about", verifyToken, aboutController.getAbout);
 };
