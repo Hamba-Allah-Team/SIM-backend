@@ -48,7 +48,7 @@ module.exports = (sequelize, Sequelize) => {
     });
 
     TransactionCategory.associate = (models) => {
-        TransactionCategory.belongsTo(models.mosque, {
+        TransactionCategory.belongsTo(models.mosques, {
             foreignKey: "mosque_id",
             as: "mosque"
         });

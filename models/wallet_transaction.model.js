@@ -82,7 +82,7 @@ module.exports = (sequelize, Sequelize) => {
             foreignKey: "user_id",
             as: "user"
         });
-        WalletTransaction.belongsTo(models.transaction_categories, {
+        WalletTransaction.belongsTo(models.transaction_category, {
             foreignKey: "category_id",
             as: "category"
         });
