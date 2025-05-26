@@ -11,16 +11,19 @@ exports.createWallet = async (req, res) => {
             return res.status(400).json({ message: "Wallet name is required." });
         }
 
-        // Cek apakah wallet dengan tipe tersebut sudah ada di masjid yang sama
-        const existingWallet = await Wallet.findOne({
-            where: {
-                mosque_id,
-                wallet_type
-            }
-        });
+        if (!wallet_type) {
+            return res.status(400).json({ message: "Wallet type is required." });
+        }
 
-        if (existingWallet) {
-            return res.status(400).json({ message: `A '${wallet_type}' wallet already exists for this mosque.` });
+        // Jika tipe cash, pastikan belum ada cash wallet
+        if (wallet_type === "cash") {
+            const existingCash = await Wallet.findOne({
+                where: { mosque_id, wallet_type: "cash" }
+            });
+
+            if (existingCash) {
+                return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
+            }
         }
 
         const newWallet = await Wallet.create({
@@ -32,16 +35,6 @@ exports.createWallet = async (req, res) => {
         res.status(201).json(newWallet);
     } catch (error) {
         console.error("Error creating wallet:", error);
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// 📤 GET all wallets
-exports.getAllWallets = async (req, res) => {
-    try {
-        const wallets = await Wallet.findAll();
-        res.json(wallets);
-    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -84,25 +77,25 @@ exports.updateWallet = async (req, res) => {
         if (!wallet) return res.status(404).json({ message: "Wallet not found" });
 
         const newMosqueId = mosque_id ?? wallet.mosque_id;
+        const newWalletType = wallet_type ?? wallet.wallet_type;
 
-        // Cek apakah ingin ubah tipe & masjid, dan pastikan tidak duplikat
-        if ((wallet_type && wallet_type !== wallet.wallet_type) || (mosque_id && mosque_id !== wallet.mosque_id)) {
-            const duplicate = await Wallet.findOne({
+        // Jika ingin update jadi 'cash', pastikan tidak duplikat
+        if (newWalletType === "cash" && (wallet.wallet_type !== "cash" || wallet.mosque_id !== newMosqueId)) {
+            const existingCash = await Wallet.findOne({
                 where: {
                     mosque_id: newMosqueId,
-                    wallet_type,
+                    wallet_type: "cash",
                     wallet_id: { [Op.ne]: walletId }
                 }
             });
 
-            if (duplicate) {
-                return res.status(400).json({ message: `A '${wallet_type}' wallet already exists for this mosque.` });
+            if (existingCash) {
+                return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
             }
         }
 
-        // Update field
         wallet.mosque_id = newMosqueId;
-        wallet.wallet_type = wallet_type ?? wallet.wallet_type;
+        wallet.wallet_type = newWalletType;
         wallet.wallet_name = wallet_name ?? wallet.wallet_name;
 
         await wallet.save();
