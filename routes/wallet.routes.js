@@ -1,6 +1,7 @@
 const { verifyToken } = require("../middleware/auth.middleware");
 const walletController = require("../controllers/wallet.controller");
 const walletTransactionController = require("../controllers/wallet_transaction.controller");
+const categoryTransaction = require("../controllers/transaction_category.controller");
 
 module.exports = function (app) {
     app.use(function (req, res, next) {
@@ -10,6 +11,14 @@ module.exports = function (app) {
         );
         next();
     });
+
+    // Routes untuk categories
+    app.post("/api/finance/categories", verifyToken, categoryTransaction.createCategory);
+    app.get("/api/finance/categories", verifyToken, categoryTransaction.getAllCategories);
+    app.get("/api/finance/categories/:id", verifyToken, categoryTransaction.getCategoryById);
+    app.get("/api/finance/categories/mosque/:mosqueId", verifyToken, categoryTransaction.getCategoriesByMosqueId);
+    app.put("/api/finance/categories/:id", verifyToken, categoryTransaction.updateCategory);
+    app.delete("/api/finance/categories/:id", verifyToken, categoryTransaction.deleteCategory);
 
     // Routes untuk Wallet
     app.post("/api/wallets", verifyToken, walletController.createWallet);
@@ -23,7 +32,7 @@ module.exports = function (app) {
     app.post("/api/finance/transactions", verifyToken, walletTransactionController.createTransaction);
     app.get("/api/finance/transactions", verifyToken, walletTransactionController.getAllTransactions);
     app.get("/api/finance/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.getTransactionById);
-    app.put("/api/finance/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.updateTransaction);
+    app.put("/api/finance/transactions/:transactionId", verifyToken, walletTransactionController.updateTransaction);
     app.delete("/api/finance/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.deleteTransaction);
     app.patch("/api/finance/:walletId/transactions/:transactionId/restore", verifyToken, walletTransactionController.restoreTransaction);
 
