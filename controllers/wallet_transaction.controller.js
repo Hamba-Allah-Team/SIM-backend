@@ -129,7 +129,7 @@ exports.getTransactionById = async (req, res) => {
 exports.updateTransaction = async (req, res) => {
     try {
         const id = req.params.transactionId;
-        const { amount, transaction_type, transaction_date, source_or_usage } = req.body;
+        const { amount, transaction_type, transaction_date, source_or_usage, wallet_id } = req.body;
 
         const transaction = await WalletTransactions.findByPk(id);
 
@@ -137,14 +137,21 @@ exports.updateTransaction = async (req, res) => {
             return res.status(404).json({ message: "Transaction not found" });
         }
 
+        const oldWalletId = transaction.wallet_id;
+
         await transaction.update({
             amount,
             transaction_type,
             transaction_date,
-            source_or_usage
+            source_or_usage,
+            ...(wallet_id !== undefined ? { wallet_id } : {})
         });
 
-        await recalculateWalletBalances(transaction.wallet_id);
+        // Recalculate balance di wallet lama dan wallet baru (jika pindah)
+        await recalculateWalletBalances(oldWalletId);
+        if (wallet_id && wallet_id !== oldWalletId) {
+            await recalculateWalletBalances(wallet_id);
+        }
 
         res.json({ message: "Transaction and balances updated successfully" });
     } catch (error) {
@@ -152,6 +159,33 @@ exports.updateTransaction = async (req, res) => {
         res.status(500).json({ message: "Failed to update transaction" });
     }
 };
+
+// exports.updateTransaction = async (req, res) => {
+//     try {
+//         const id = req.params.transactionId;
+//         const { amount, transaction_type, transaction_date, source_or_usage } = req.body;
+
+//         const transaction = await WalletTransactions.findByPk(id);
+
+//         if (!transaction) {
+//             return res.status(404).json({ message: "Transaction not found" });
+//         }
+
+//         await transaction.update({
+//             amount,
+//             transaction_type,
+//             transaction_date,
+//             source_or_usage
+//         });
+
+//         await recalculateWalletBalances(transaction.wallet_id);
+
+//         res.json({ message: "Transaction and balances updated successfully" });
+//     } catch (error) {
+//         console.error("Error updating transaction:", error);
+//         res.status(500).json({ message: "Failed to update transaction" });
+//     }
+// };
 
 exports.deleteTransaction = async (req, res) => {
     try {
