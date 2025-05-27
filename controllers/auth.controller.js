@@ -26,9 +26,7 @@ exports.signup = async (req, res) => {
 
     // Validasi input wajib
     if (!username || !email || !password || !name) {
-      return res
-        .status(400)
-        .send({ message: "Semua kolom wajib diisi." });
+      return res.status(400).send({ message: "Semua kolom wajib diisi." });
     }
 
     // Validasi format email
@@ -43,8 +41,9 @@ exports.signup = async (req, res) => {
         .send({ message: "Kata sandi minimal harus 8 karakter." });
     }
 
-    // Cek apakah email sudah terdaftar
-    const existingUser = await User.findOne({ where: { email } });
+    const lowerCaseEmail = email.toLowerCase();
+
+    const existingUser = await User.findOne({ where: { lowerCaseEmail } });
     if (existingUser) {
       return res.status(409).send({ message: "Email sudah terdaftar." });
     }
@@ -58,7 +57,7 @@ exports.signup = async (req, res) => {
       {
         mosque_id: null,
         username,
-        email,
+        email: lowerCaseEmail,
         password: bcrypt.hashSync(password, 8),
         name,
         role: role || "admin",
@@ -108,7 +107,13 @@ exports.signin = async (req, res) => {
         .send({ message: "Email dan kata sandi wajib diisi." });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const lowerCaseEmail = email.toLowerCase();
+
+    const user = await User.findOne({
+      where: {
+        email: lowerCaseEmail,
+      },
+    });
 
     if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
@@ -122,7 +127,6 @@ exports.signin = async (req, res) => {
       });
     }
 
-    // Verifikasi password
     const passwordIsValid = bcrypt.compareSync(password, user.password);
     if (!passwordIsValid) {
       return res.status(401).send({
