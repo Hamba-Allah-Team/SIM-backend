@@ -139,7 +139,7 @@ exports.signin = async (req, res) => {
     if (user.role === "admin" && user.status === "inactive") {
       return res.status(403).send({
         accessToken: null,
-        message: "Akun Anda tidak aktif. Silakan Lakukan Perpanjangan.",
+        message: "Account Inactive",
       });
     }
 
