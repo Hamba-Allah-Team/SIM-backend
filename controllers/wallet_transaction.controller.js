@@ -10,6 +10,7 @@ exports.createTransaction = async (req, res) => {
             wallet_id,
             amount,
             transaction_type,
+            category_id,
             source_or_usage,
             transaction_date,
         } = req.body;
@@ -17,7 +18,7 @@ exports.createTransaction = async (req, res) => {
         const user_id = req.userId;
 
         // Validasi input dasar
-        if (!wallet_id || !amount || !transaction_type || !transaction_date) {
+        if (!wallet_id || !amount || !transaction_type || !transaction_date || !category_id) {
             return res.status(400).json({ message: "Semua field wajib diisi." });
         }
 
@@ -30,6 +31,7 @@ exports.createTransaction = async (req, res) => {
             wallet_id,
             amount: amountNumber,
             transaction_type,
+            category_id, // Jika ingin menggunakan kategori, bisa ditambahkan di sini
             source_or_usage,
             transaction_date,
             balance: 0, // tetap 0, akan diatur oleh logika saldo yang sudah ada
@@ -129,7 +131,14 @@ exports.getTransactionById = async (req, res) => {
 exports.updateTransaction = async (req, res) => {
     try {
         const id = req.params.transactionId;
-        const { amount, transaction_type, transaction_date, source_or_usage, wallet_id } = req.body;
+        const {
+            wallet_id,
+            amount,
+            transaction_type,
+            category_id,
+            source_or_usage,
+            transaction_date,
+        } = req.body;
 
         const transaction = await WalletTransactions.findByPk(id);
 
@@ -144,6 +153,7 @@ exports.updateTransaction = async (req, res) => {
             transaction_type,
             transaction_date,
             source_or_usage,
+            category_id,
             ...(wallet_id !== undefined ? { wallet_id } : {})
         });
 
