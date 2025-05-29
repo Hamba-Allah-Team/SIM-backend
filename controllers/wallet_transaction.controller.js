@@ -87,6 +87,83 @@ exports.getAllTransactions = async (req, res) => {
     }
 };
 
+exports.transferBetweenWallets = async (req, res) => {
+    try {
+        const {
+            from_wallet_id,
+            to_wallet_id,
+            amount,
+            transaction_date,
+            source_or_usage,
+        } = req.body;
+
+        const user_id = req.userId;
+
+        // Validasi input
+        if (!from_wallet_id || !to_wallet_id || !amount || !transaction_date) {
+            return res.status(400).json({ message: "Semua field wajib diisi." });
+        }
+
+        if (from_wallet_id === to_wallet_id) {
+            return res.status(400).json({ message: "Wallet sumber dan tujuan tidak boleh sama." });
+        }
+
+        const amountNumber = Number(amount);
+        if (isNaN(amountNumber) || amountNumber <= 0) {
+            return res.status(400).json({ message: "Nominal tidak valid. Harus lebih dari 0." });
+        }
+
+        // Cek wallet sumber dan tujuan ada
+        const fromWallet = await Wallets.findByPk(from_wallet_id);
+        const toWallet = await Wallets.findByPk(to_wallet_id);
+
+        if (!fromWallet || !toWallet) {
+            return res.status(404).json({ message: "Wallet sumber atau tujuan tidak ditemukan." });
+        }
+
+        // Buat transaksi transfer_out di wallet sumber
+        const debitTransaction = await WalletTransactions.create({
+            wallet_id: from_wallet_id,
+            amount: amountNumber,
+            transaction_type: "transfer_out",  // tipe khusus untuk transfer keluar
+            category_id: null,
+            source_or_usage,
+            transaction_date,
+            balance: 0, // nanti akan dihitung ulang
+            user_id,
+        });
+
+        // Buat transaksi transfer_in di wallet tujuan
+        const creditTransaction = await WalletTransactions.create({
+            wallet_id: to_wallet_id,
+            amount: amountNumber,
+            transaction_type: "transfer_in",  // tipe khusus untuk transfer masuk
+            category_id: null,
+            source_or_usage,
+            transaction_date,
+            balance: 0, // nanti akan dihitung ulang
+            user_id,
+        });
+
+        // Hitung ulang saldo kedua wallet
+        await recalculateWalletBalances(from_wallet_id);
+        await recalculateWalletBalances(to_wallet_id);
+
+        // Ambil ulang transaksi untuk mendapatkan balance terbaru
+        const updatedDebitTransaction = await WalletTransactions.findByPk(debitTransaction.transaction_id);
+        const updatedCreditTransaction = await WalletTransactions.findByPk(creditTransaction.transaction_id);
+
+        res.status(201).json({
+            message: "Transfer berhasil dilakukan",
+            debitTransaction: updatedDebitTransaction,
+            creditTransaction: updatedCreditTransaction,
+        });
+
+    } catch (error) {
+        console.error("Error during wallet transfer:", error);
+        res.status(500).json({ message: "Gagal melakukan transfer antar wallet" });
+    }
+};
 
 exports.getTransactionById = async (req, res) => {
     try {
@@ -335,5 +412,68 @@ exports.getPublicSummary = async (req, res) => {
     } catch (error) {
         console.error("Error generating public summary:", error);
         res.status(500).json({ message: "Failed to fetch public financial summary" });
+    }
+};
+
+exports.getPeriodicReport = async (req, res) => {
+    try {
+        const { period, year, month } = req.query;
+        const userId = req.userId;
+
+        if (!period || !year || (period === "monthly" && !month)) {
+            return res.status(400).json({ message: "Parameter tidak lengkap." });
+        }
+
+        const startDate = new Date(period === "monthly" ? `${year}-${month}-01` : `${year}-01-01`);
+        const endDate = new Date(period === "monthly"
+            ? new Date(year, month, 0) // akhir bulan
+            : new Date(`${parseInt(year) + 1}-01-01`)
+        );
+
+        // Ambil transaksi milik user dalam rentang waktu
+        const transactions = await db.wallet_transaction.findAll({
+            where: {
+                user_id: userId,
+                transaction_date: { [Op.between]: [startDate, endDate] },
+                transaction_type: { [Op.in]: ['income', 'expense'] },
+                deleted_at: null
+            },
+            include: [
+                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] },
+                { model: db.transaction_category, as: 'category', attributes: ['name'] }
+            ],
+            order: [['transaction_date', 'ASC']]
+        });
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        const formattedTransactions = transactions.map(tx => {
+            const amount = Number(tx.amount);
+            if (tx.transaction_type === "income") totalIncome += amount;
+            if (tx.transaction_type === "expense") totalExpense += amount;
+
+            return {
+                transaction_id: tx.transaction_id,
+                date: tx.transaction_date,
+                type: tx.transaction_type,
+                amount: amount,
+                category: tx.category?.name || null,
+                wallet: tx.wallet?.wallet_name || null,
+                description: tx.source_or_usage
+            };
+        });
+
+        res.json({
+            period: period === "monthly" ? `${year}-${month}` : `${year}`,
+            total_income: totalIncome,
+            total_expense: totalExpense,
+            net_balance: totalIncome - totalExpense,
+            transactions: formattedTransactions
+        });
+
+    } catch (error) {
+        console.error("Error generating periodic report:", error);
+        res.status(500).json({ message: "Gagal mengambil laporan keuangan" });
     }
 };
