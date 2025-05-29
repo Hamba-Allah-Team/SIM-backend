@@ -440,7 +440,7 @@ exports.getPeriodicReport = async (req, res) => {
             },
             include: [
                 { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] },
-                { model: db.transaction_category, as: 'category', attributes: ['name'] }
+                { model: db.transaction_category, as: 'category', attributes: ['category_name'] }
             ],
             order: [['transaction_date', 'ASC']]
         });
@@ -458,7 +458,7 @@ exports.getPeriodicReport = async (req, res) => {
                 date: tx.transaction_date,
                 type: tx.transaction_type,
                 amount: amount,
-                category: tx.category?.name || null,
+                category: tx.category?.category_name || null,
                 wallet: tx.wallet?.wallet_name || null,
                 description: tx.source_or_usage
             };
