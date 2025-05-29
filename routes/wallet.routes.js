@@ -27,6 +27,7 @@ module.exports = function (app) {
     app.get("/api/wallets/:id", verifyToken, walletController.getWalletById);
     app.put("/api/wallets/:id", verifyToken, walletController.updateWallet);
     app.delete("/api/wallets/:id", verifyToken, walletController.deleteWallet);
+    app.post("/api/wallets/transfer", verifyToken, walletTransactionController.transferBetweenWallets);
 
     // Routes untuk Wallet Transactions
     app.post("/api/finance/transactions", verifyToken, walletTransactionController.createTransaction);
