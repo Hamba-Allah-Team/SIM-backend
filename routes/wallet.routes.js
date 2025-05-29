@@ -42,4 +42,5 @@ module.exports = function (app) {
     app.get("/api/wallets/mosque/:mosqueId", verifyToken, walletTransactionController.getWalletsByMosqueWithBalance);
 
     app.get("/api/finance/public-summary/:mosqueId", walletTransactionController.getPublicSummary);
+    app.get("/api/finance/report", verifyToken, walletTransactionController.getPeriodicReport);
 };
