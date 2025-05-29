@@ -477,3 +477,49 @@ exports.getPeriodicReport = async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil laporan keuangan" });
     }
 };
+
+exports.getWalletBalancesByDate = async (req, res) => {
+    try {
+        const { mosqueId } = req.params;
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ message: "Tanggal wajib disertakan (query param 'date')." });
+        }
+
+        const targetDate = new Date(date);
+
+        const wallets = await db.wallet.findAll({
+            where: { mosque_id: mosqueId },
+        });
+
+        const result = await Promise.all(wallets.map(async (wallet) => {
+            const latestTransaction = await db.wallet_transaction.findOne({
+                where: {
+                    wallet_id: wallet.wallet_id,
+                    transaction_date: { [Op.lte]: targetDate },
+                    deleted_at: null,
+                },
+                order: [['transaction_date', 'DESC'], ['transaction_id', 'DESC']],
+                attributes: ['balance']
+            });
+
+            return {
+                wallet_id: wallet.wallet_id,
+                wallet_name: wallet.wallet_name,
+                wallet_type: wallet.wallet_type,
+                balance_on_date: latestTransaction ? parseFloat(latestTransaction.balance) : 0
+            };
+        }));
+
+        res.json({
+            date: targetDate.toISOString().split('T')[0],
+            mosque_id: mosqueId,
+            wallet_balances: result
+        });
+
+    } catch (error) {
+        console.error("Error getting wallet balances by date:", error);
+        res.status(500).json({ message: "Gagal mengambil saldo akhir per wallet." });
+    }
+};
