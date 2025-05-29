@@ -2,6 +2,7 @@ const db = require("../models");
 const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
+const TransactionCategory = db.transaction_category;
 const { recalculateWalletBalances } = require("../utils/finance");
 
 exports.createTransaction = async (req, res) => {
@@ -593,5 +594,88 @@ exports.getTransactionsByCategoryForMosque = async (req, res) => {
     } catch (error) {
         console.error("Error fetching transactions by category:", error);
         res.status(500).json({ message: "Gagal mengambil transaksi per kategori." });
+    }
+};
+
+exports.filterTransactions = async (req, res) => {
+    try {
+        const {
+            mosque_id,
+            start_date,
+            end_date,
+            transaction_type,
+            category_id,
+            wallet_id,
+            user_id,
+            min_amount,
+            max_amount,
+            source_or_usage
+        } = req.query;
+
+        const whereClause = {
+            deleted_at: null // exclude soft-deleted
+        };
+
+        // Pastikan hanya ambil transaksi dari masjid terkait
+        if (mosque_id) {
+            const wallets = await Wallet.findAll({
+                where: { mosque_id },
+                attributes: ["wallet_id"]
+            });
+            const walletIds = wallets.map(w => w.wallet_id);
+            whereClause.wallet_id = { [Op.in]: walletIds };
+        }
+
+        if (start_date && end_date) {
+            whereClause.transaction_date = {
+                [Op.between]: [start_date, end_date]
+            };
+        } else if (start_date) {
+            whereClause.transaction_date = { [Op.gte]: start_date };
+        } else if (end_date) {
+            whereClause.transaction_date = { [Op.lte]: end_date };
+        }
+
+        if (transaction_type) whereClause.transaction_type = transaction_type;
+        if (category_id) whereClause.category_id = category_id;
+        if (wallet_id) whereClause.wallet_id = wallet_id;
+        if (user_id) whereClause.user_id = user_id;
+        if (min_amount && max_amount) {
+            whereClause.amount = {
+                [Op.between]: [min_amount, max_amount]
+            };
+        } else if (min_amount) {
+            whereClause.amount = { [Op.gte]: min_amount };
+        } else if (max_amount) {
+            whereClause.amount = { [Op.lte]: max_amount };
+        }
+
+        if (source_or_usage) {
+            whereClause.source_or_usage = {
+                [Op.like]: `%${source_or_usage}%`
+            };
+        }
+
+        const transactions = await WalletTransaction.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Wallet,
+                    as: "wallet",
+                    attributes: ["wallet_name", "wallet_type"]
+                },
+                {
+                    model: TransactionCategory,
+                    as: "category",
+                    attributes: ["category_name", "category_type"]
+                }
+            ],
+            order: [["transaction_date", "DESC"]]
+        });
+
+        res.status(200).json(transactions);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal memfilter transaksi" });
     }
 };
