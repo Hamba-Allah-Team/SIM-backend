@@ -523,3 +523,75 @@ exports.getWalletBalancesByDate = async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil saldo akhir per wallet." });
     }
 };
+
+exports.getTransactionsByCategoryForMosque = async (req, res) => {
+    try {
+        const { mosqueId } = req.params;
+        const { categoryId, startDate, endDate } = req.query;
+
+        if (!categoryId || !startDate || !endDate) {
+            return res.status(400).json({ message: "Parameter categoryId, startDate, dan endDate wajib diisi." });
+        }
+
+        // ✅ Validasi kategori milik masjid tersebut
+        const category = await db.transaction_category.findOne({
+            where: {
+                category_id: categoryId,
+                mosque_id: mosqueId
+            }
+        });
+
+        if (!category) {
+            return res.status(404).json({ message: "Kategori tidak ditemukan atau bukan milik masjid ini." });
+        }
+
+        // ✅ Ambil semua wallet milik masjid
+        const wallets = await db.wallet.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: ['wallet_id']
+        });
+
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        // ✅ Query transaksi dalam rentang waktu & sesuai kategori
+        const transactions = await db.wallet_transaction.findAll({
+            where: {
+                wallet_id: { [Op.in]: walletIds },
+                category_id: categoryId,
+                transaction_date: {
+                    [Op.between]: [new Date(startDate), new Date(endDate)]
+                },
+                deleted_at: null
+            },
+            include: [
+                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] },
+                { model: db.transaction_category, as: 'category', attributes: ['category_name'] }
+            ],
+            order: [['transaction_date', 'ASC']]
+        });
+
+        const result = transactions.map(tx => ({
+            transaction_id: tx.transaction_id,
+            date: tx.transaction_date,
+            amount: tx.amount,
+            wallet_name: tx.wallet?.wallet_name || null,
+            category_name: tx.category?.category_name || null,
+            description: tx.source_or_usage,
+            type: tx.transaction_type
+        }));
+
+        res.json({
+            mosque_id: mosqueId,
+            category_id: categoryId,
+            category_name: category.category_name,
+            start_date: startDate,
+            end_date: endDate,
+            total_transactions: result.length,
+            transactions: result
+        });
+
+    } catch (error) {
+        console.error("Error fetching transactions by category:", error);
+        res.status(500).json({ message: "Gagal mengambil transaksi per kategori." });
+    }
+};
