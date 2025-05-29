@@ -19,11 +19,6 @@ exports.submitActivationRequest = async (req, res) => {
       type,
       mosque_name,
       mosque_address,
-      mosque_description,
-      mosque_phone_whatsapp,
-      mosque_email,
-      mosque_facebook,
-      mosque_instagram,
     } = req.body;
 
     // Ditambahkan: Validasi untuk password
@@ -60,7 +55,7 @@ exports.submitActivationRequest = async (req, res) => {
 
     const existingActivation = await Activation.findOne({
       where: {
-        [Op.or]: [{ username }, { lowerCaseEmail }],
+        [Op.or]: [{ username }, { email: lowerCaseEmail }],
         status: { [Op.in]: ["pending", "approved"] },
       },
       transaction: t,
@@ -78,12 +73,7 @@ exports.submitActivationRequest = async (req, res) => {
 
     const anyMosqueFieldFilled =
       mosque_name ||
-      mosque_address ||
-      mosque_description ||
-      mosque_phone_whatsapp ||
-      mosque_email ||
-      mosque_facebook ||
-      mosque_instagram;
+      mosque_address;
 
     if (anyMosqueFieldFilled) {
       if (!mosque_name || !mosque_address) {
@@ -110,11 +100,6 @@ exports.submitActivationRequest = async (req, res) => {
         status: "pending",
         mosque_name: mosque_name || null,
         mosque_address: mosque_address || null,
-        mosque_phone_whatsapp: mosque_phone_whatsapp || null,
-        mosque_email: mosque_email || null,
-        mosque_facebook: mosque_facebook || null,
-        mosque_instagram: mosque_instagram || null,
-        mosque_description: mosque_description || null,
       },
       { transaction: t }
     );
@@ -163,11 +148,6 @@ exports.processActivationRequest = async (req, res) => {
         proof_image,
         mosque_name,
         mosque_address,
-        mosque_description,
-        mosque_phone_whatsapp,
-        mosque_email,
-        mosque_facebook,
-        mosque_instagram,
       } = activation;
 
       if (!password) {
@@ -179,12 +159,7 @@ exports.processActivationRequest = async (req, res) => {
 
       const anyMosqueDataProvided =
         mosque_name ||
-        mosque_address ||
-        mosque_description ||
-        mosque_phone_whatsapp ||
-        mosque_email ||
-        mosque_facebook ||
-        mosque_instagram;
+        mosque_address;
 
       if (anyMosqueDataProvided && (!mosque_name || !mosque_address)) {
         await t.rollback();
@@ -201,11 +176,6 @@ exports.processActivationRequest = async (req, res) => {
           {
             name: mosque_name,
             address: mosque_address,
-            description: mosque_description || null,
-            phone_whatsapp: mosque_phone_whatsapp || null,
-            email: mosque_email || null,
-            facebook: mosque_facebook || null,
-            instagram: mosque_instagram || null,
           },
           { transaction: t }
         );
@@ -224,7 +194,6 @@ exports.processActivationRequest = async (req, res) => {
           status: "active",
           mosque_id: mosque ? mosque.mosque_id : null,
           extension_code: proof_number,
-          profile_image: proof_image,
           expired_at: expiredDate,
         },
         { transaction: t }
