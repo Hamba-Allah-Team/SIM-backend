@@ -27,21 +27,33 @@ exports.createTransaction = async (req, res) => {
             return res.status(400).json({ message: "Nominal tidak valid. Harus lebih dari 0." });
         }
 
+        // 👉 Validasi kesesuaian category_type dengan transaction_type
+        const category = await db.transaction_category.findByPk(category_id);
+        if (!category) {
+            return res.status(400).json({ message: "Kategori tidak ditemukan." });
+        }
+
+        if (category.category_type !== transaction_type) {
+            return res.status(400).json({
+                message: `Tipe kategori (${category.category_type}) tidak sesuai dengan tipe transaksi (${transaction_type}).`
+            });
+        }
+
         const transaction = await WalletTransactions.create({
             wallet_id,
             amount: amountNumber,
             transaction_type,
-            category_id, // Jika ingin menggunakan kategori, bisa ditambahkan di sini
+            category_id,
             source_or_usage,
             transaction_date,
-            balance: 0, // tetap 0, akan diatur oleh logika saldo yang sudah ada
+            balance: 0, // tetap 0, akan diatur oleh logika saldo
             user_id,
         });
 
-        // Jalankan perhitungan saldo jika memang perlu, tanpa mengubah logikanya
+        // Jalankan perhitungan saldo
         await recalculateWalletBalances(wallet_id);
 
-        // Ambil ulang transaksi yang baru dibuat, agar dapat balance yang sudah diperbarui
+        // Ambil ulang transaksi agar balance-nya diperbarui
         const updatedTransaction = await WalletTransactions.findByPk(transaction.transaction_id);
 
         res.status(201).json(updatedTransaction);
@@ -50,42 +62,6 @@ exports.createTransaction = async (req, res) => {
         res.status(500).json({ message: "Gagal menambahkan transaksi" });
     }
 };
-
-// exports.createTransaction = async (req, res) => {
-//     try {
-//         const wallet_id = parseInt(req.params.walletId);
-//         const {
-//             amount,
-//             transaction_type,
-//             source_or_usage,
-//             transaction_date
-//         } = req.body;
-
-//         const user_id = req.userId;
-
-//         const amountNumber = Number(amount);
-//         if (isNaN(amountNumber) || amountNumber <= 0) {
-//             return res.status(400).json({ message: "Invalid amount. Must be a positive number." });
-//         }
-
-//         const transaction = await WalletTransactions.create({
-//             wallet_id,
-//             amount: amountNumber,
-//             transaction_type,
-//             source_or_usage,
-//             transaction_date,
-//             balance: 0,
-//             user_id
-//         });
-
-//         await recalculateWalletBalances(wallet_id);
-
-//         res.status(201).json(transaction);
-//     } catch (error) {
-//         console.error("Error creating transaction:", error);
-//         res.status(500).json({ message: "Failed to create transaction" });
-//     }
-// };
 
 exports.getAllTransactions = async (req, res) => {
     try {
@@ -148,6 +124,24 @@ exports.updateTransaction = async (req, res) => {
 
         const oldWalletId = transaction.wallet_id;
 
+        // 👉 Validasi category_id (jika diberikan)
+        if (category_id || transaction_type) {
+            const effectiveCategoryId = category_id || transaction.category_id;
+            const effectiveTransactionType = transaction_type || transaction.transaction_type;
+
+            const category = await db.transaction_category.findByPk(effectiveCategoryId);
+            if (!category) {
+                return res.status(400).json({ message: "Kategori tidak ditemukan." });
+            }
+
+            if (category.category_type !== effectiveTransactionType) {
+                return res.status(400).json({
+                    message: `Tipe kategori (${category.category_type}) tidak sesuai dengan tipe transaksi (${effectiveTransactionType}).`
+                });
+            }
+        }
+
+        // Update transaksi
         await transaction.update({
             amount,
             transaction_type,
@@ -157,7 +151,7 @@ exports.updateTransaction = async (req, res) => {
             ...(wallet_id !== undefined ? { wallet_id } : {})
         });
 
-        // Recalculate balance di wallet lama dan wallet baru (jika pindah)
+        // Recalculate balance di wallet lama dan wallet baru (jika berpindah)
         await recalculateWalletBalances(oldWalletId);
         if (wallet_id && wallet_id !== oldWalletId) {
             await recalculateWalletBalances(wallet_id);
@@ -169,33 +163,6 @@ exports.updateTransaction = async (req, res) => {
         res.status(500).json({ message: "Failed to update transaction" });
     }
 };
-
-// exports.updateTransaction = async (req, res) => {
-//     try {
-//         const id = req.params.transactionId;
-//         const { amount, transaction_type, transaction_date, source_or_usage } = req.body;
-
-//         const transaction = await WalletTransactions.findByPk(id);
-
-//         if (!transaction) {
-//             return res.status(404).json({ message: "Transaction not found" });
-//         }
-
-//         await transaction.update({
-//             amount,
-//             transaction_type,
-//             transaction_date,
-//             source_or_usage
-//         });
-
-//         await recalculateWalletBalances(transaction.wallet_id);
-
-//         res.json({ message: "Transaction and balances updated successfully" });
-//     } catch (error) {
-//         console.error("Error updating transaction:", error);
-//         res.status(500).json({ message: "Failed to update transaction" });
-//     }
-// };
 
 exports.deleteTransaction = async (req, res) => {
     try {
@@ -335,36 +302,6 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
     }
 };
-
-// exports.getWalletsByMosqueWithBalance = async (req, res) => {
-//     try {
-//         const mosqueId = req.params.mosqueId;
-
-//         const wallets = await Wallets.findAll({
-//             where: { mosque_id: mosqueId }
-//         });
-
-//         const result = await Promise.all(wallets.map(async (wallet) => {
-//             const latestTransaction = await WalletTransactions.findOne({
-//                 where: { wallet_id: wallet.wallet_id },
-//                 order: [['transaction_date', 'DESC']],
-//                 attributes: ['balance']
-//             });
-
-//             return {
-//                 wallet_id: wallet.wallet_id,
-//                 mosque_id: wallet.mosque_id,
-//                 wallet_type: wallet.wallet_type,
-//                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
-//             };
-//         }));
-
-//         res.json(result);
-//     } catch (error) {
-//         console.error("Error fetching wallets by mosque with balances:", error);
-//         res.status(500).json({ message: "Failed to fetch wallets with balances by mosque" });
-//     }
-// };
 
 exports.getPublicSummary = async (req, res) => {
     try {
