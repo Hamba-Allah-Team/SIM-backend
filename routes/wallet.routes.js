@@ -43,4 +43,5 @@ module.exports = function (app) {
 
     app.get("/api/finance/public-summary/:mosqueId", walletTransactionController.getPublicSummary);
     app.get("/api/finance/report", verifyToken, walletTransactionController.getPeriodicReport);
+    app.get("/api/wallets/:mosqueId/balance-date", verifyToken, walletTransactionController.getWalletBalancesByDate);
 };
