@@ -1,5 +1,6 @@
 const db = require("../models");
 const PDFDocument = require('pdfkit');
+require('pdfkit-table');
 const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
@@ -747,39 +748,32 @@ exports.getPeriodicReportExport = async (req, res) => {
             doc.text(`Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
             doc.moveDown();
 
-            let y = doc.y;
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.text('No', 40, y, { width: 25 });
-            doc.text('Tanggal', 70, y, { width: 60 });
-            doc.text('Tipe', 135, y, { width: 50 });
-            doc.text('Kategori', 190, y, { width: 80 });
-            doc.text('Wallet', 275, y, { width: 80 });
-            doc.text('Jumlah', 360, y, { width: 90, align: 'right' });
-            doc.moveDown(0.5);
+            // Siapkan data tabel
+            const table = {
+                title: "Rincian Transaksi",
+                headers: [
+                    { label: "No", property: "no", width: 30, renderer: null },
+                    { label: "Tanggal", property: "date", width: 60 },
+                    { label: "Tipe", property: "type", width: 60 },
+                    { label: "Kategori", property: "category", width: 80 },
+                    { label: "Wallet", property: "wallet", width: 80 },
+                    { label: "Jumlah", property: "amount", width: 90, align: 'right' },
+                ],
+                datas: rows.map((tx, i) => ({
+                    no: i + 1,
+                    date: tx.date,
+                    type: tx.type,
+                    category: tx.category,
+                    wallet: tx.wallet,
+                    amount: `Rp${tx.amount.toLocaleString('id-ID')}`
+                })),
+            };
 
-
-            // Data Baris
-            rows.forEach((tx, i) => {
-                if (doc.y > 720) doc.addPage(); // jaga batas bawah halaman
-
-                y = doc.y; // baris baru
-                doc.font('Helvetica').fontSize(10);
-                doc.text(String(i + 1), 40, y, { width: 25 });
-                doc.text(tx.date, 70, y, { width: 60 });
-                doc.text(tx.type, 135, y, { width: 50 });
-                doc.text(tx.category, 190, y, { width: 80 });
-                doc.text(tx.wallet, 275, y, { width: 80 });
-                doc.text(`Rp${tx.amount.toLocaleString('id-ID')}`, 360, y, { width: 90, align: 'right' });
-
-                doc.moveDown(0.3);
-
-                if (tx.description) {
-                    doc.fontSize(9).fillColor('gray');
-                    doc.text(`Keterangan: ${tx.description}`, 70, doc.y, { width: 420 });
-                    doc.fillColor('black').moveDown(0.5);
-                }
+            // Render tabel
+            await doc.table(table, {
+                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
             });
-
 
             doc.end();
         } else {
