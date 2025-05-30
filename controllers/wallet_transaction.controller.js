@@ -381,6 +381,7 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
             return {
                 wallet_id: wallet.wallet_id,
                 mosque_id: wallet.mosque_id,
+                wallet_name: wallet.wallet_name,
                 wallet_type: wallet.wallet_type,
                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
             };
