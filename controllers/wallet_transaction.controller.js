@@ -618,7 +618,7 @@ exports.filterTransactions = async (req, res) => {
 
         // Pastikan hanya ambil transaksi dari masjid terkait
         if (mosque_id) {
-            const wallets = await Wallet.findAll({
+            const wallets = await Wallets.findAll({
                 where: { mosque_id },
                 attributes: ["wallet_id"]
             });
@@ -656,11 +656,11 @@ exports.filterTransactions = async (req, res) => {
             };
         }
 
-        const transactions = await WalletTransaction.findAll({
+        const transactions = await WalletTransactions.findAll({
             where: whereClause,
             include: [
                 {
-                    model: Wallet,
+                    model: Wallets,
                     as: "wallet",
                     attributes: ["wallet_name", "wallet_type"]
                 },
