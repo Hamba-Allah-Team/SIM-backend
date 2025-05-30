@@ -708,6 +708,33 @@ exports.getPeriodicReportExport = async (req, res) => {
             : new Date(`${parseInt(year) + 1}-01-01`)
         );
 
+        // ⬇️ Tambahan: cari mosque_id dari user
+        const user = await db.user.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User tidak ditemukan." });
+        }
+        const mosqueId = user.mosque_id;
+
+        const wallets = await db.wallet.findAll({
+            where: {
+                deleted_at: null,
+                mosque_id: mosqueId
+            }
+        });
+
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        const saldoAwal = await db.wallet_transaction.sum('amount', {
+            where: {
+                transaction_type: 'initial_balance',
+                deleted_at: null,
+                wallet_id: { [Op.in]: walletIds },
+                transaction_date: { [Op.lte]: startDate } // gunakan Op.lte untuk termasuk tanggal awal
+            }
+        }) || 0;
+
+
+        // Ambil transaksi untuk periode
         const transactions = await db.wallet_transaction.findAll({
             where: {
                 user_id: userId,
@@ -722,9 +749,24 @@ exports.getPeriodicReportExport = async (req, res) => {
             order: [['transaction_date', 'ASC']]
         });
 
+        // Ambil juga initial_balance yang ada dalam periode ini (opsional: ditampilkan di tabel)
+        const initialBalances = await db.wallet_transaction.findAll({
+            where: {
+                transaction_type: 'initial_balance',
+                deleted_at: null,
+                wallet_id: { [Op.in]: walletIds },
+                transaction_date: { [Op.between]: [startDate, endDate] }
+            },
+            include: [
+                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] }
+            ],
+            order: [['transaction_date', 'ASC']]
+        });
+
         let totalIncome = 0;
         let totalExpense = 0;
-        const rows = transactions.map(tx => {
+
+        const incomeExpenseRows = transactions.map(tx => {
             const amount = Number(tx.amount);
             if (tx.transaction_type === 'income') totalIncome += amount;
             else if (tx.transaction_type === 'expense') totalExpense += amount;
@@ -739,63 +781,18 @@ exports.getPeriodicReportExport = async (req, res) => {
             };
         });
 
-        // if (format === 'pdf') {
-        //     const docDefinition = {
-        //         content: [
-        //             { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
-        //             {
-        //                 text: `Periode: ${period === 'monthly' ? `${month}-${year}` : year}`,
-        //                 alignment: "center",
-        //                 margin: [0, 0, 0, 10]
-        //             },
+        const initialBalanceRows = initialBalances.map(tx => ({
+            date: tx.transaction_date.toISOString().split('T')[0],
+            type: 'initial_balance',
+            category: '-',
+            wallet: tx.wallet?.wallet_name || '',
+            description: tx.source_or_usage || 'Saldo Awal',
+            amount: Number(tx.amount)
+        }));
 
-        //             { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}` },
-        //             { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}` },
-        //             { text: `Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}` },
-        //             { text: "", margin: [0, 0, 0, 10] },
+        const allRows = incomeExpenseRows.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const saldoBersih = saldoAwal + totalIncome - totalExpense;
 
-        //             {
-        //                 table: {
-        //                     headerRows: 1,
-        //                     widths: [30, 60, 60, 70, 70, 70, "*"],
-        //                     body: [
-        //                         ["No", "Tanggal", "Tipe", "Kategori", "Wallet", "Jumlah", "Keterangan"],
-        //                         ...rows.map((tx, i) => [
-        //                             i + 1,
-        //                             tx.date,
-        //                             tx.type,
-        //                             tx.category,
-        //                             tx.wallet,
-        //                             `Rp${tx.amount.toLocaleString('id-ID')}`,
-        //                             tx.description
-        //                         ])
-        //                     ]
-        //                 },
-        //                 layout: "lightHorizontalLines"
-        //             }
-        //         ],
-        //         styles: {
-        //             header: {
-        //                 fontSize: 16,
-        //                 bold: true,
-        //                 alignment: "center",
-        //                 margin: [0, 0, 0, 10]
-        //             }
-        //         },
-        //         defaultStyle: {
-        //             font: "Roboto"
-        //         }
-        //     };
-
-        //     const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-        //     const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
-        //     res.setHeader("Content-Type", "application/pdf");
-        //     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
-
-        //     pdfDoc.pipe(res);
-        //     pdfDoc.end();
-        // } 
         if (format === 'pdf') {
             const moment = require("moment");
             moment.locale('id');
@@ -809,9 +806,10 @@ exports.getPeriodicReportExport = async (req, res) => {
                         margin: [0, 0, 0, 10]
                     },
 
+                    { text: `Saldo Awal : Rp${saldoAwal.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
                     { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
                     { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
-                    { text: `Saldo Bersih : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 10] },
+                    { text: `Saldo Bersih : Rp${saldoBersih.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 10] },
 
                     {
                         table: {
@@ -827,10 +825,14 @@ exports.getPeriodicReportExport = async (req, res) => {
                                     { text: "Nominal", bold: true },
                                     { text: "Keterangan", bold: true }
                                 ],
-                                ...rows.map((tx, i) => [
+                                ...allRows.map((tx, i) => [
                                     i + 1,
                                     moment(tx.date).format("dddd, DD MMMM YYYY"),
-                                    tx.type === "income" ? "Pemasukan" : "Pengeluaran",
+                                    tx.type === "income"
+                                        ? "Pemasukan"
+                                        : tx.type === "expense"
+                                            ? "Pengeluaran"
+                                            : "Saldo Awal",
                                     tx.category,
                                     tx.wallet,
                                     `Rp${tx.amount.toLocaleString('id-ID')}`,
@@ -857,7 +859,6 @@ exports.getPeriodicReportExport = async (req, res) => {
             };
 
             const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
             const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
             res.setHeader("Content-Type", "application/pdf");
             res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
