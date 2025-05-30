@@ -1,6 +1,16 @@
 const db = require("../models");
 const PDFDocument = require('pdfkit');
-require('pdfkit-table');
+const PdfPrinter = require("pdfmake");
+const path = require("path");
+const fonts = {
+    Roboto: {
+        normal: path.join(__dirname, "..", "assets", "fonts", "Roboto-Regular.ttf"),
+        bold: path.join(__dirname, "..", "assets", "fonts", "Roboto-Medium.ttf"),
+        italics: path.join(__dirname, "..", "assets", "fonts", "Roboto-Italic.ttf"),
+        bolditalics: path.join(__dirname, "..", "assets", "fonts", "Roboto-MediumItalic.ttf"),
+    }
+};
+const printer = new PdfPrinter(fonts);
 const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
@@ -729,53 +739,61 @@ exports.getPeriodicReportExport = async (req, res) => {
         });
 
         if (format === 'pdf') {
-            const doc = new PDFDocument({ margin: 40, size: 'A4' });
-            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+            const docDefinition = {
+                content: [
+                    { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
+                    {
+                        text: `Periode: ${period === 'monthly' ? `${month}-${year}` : year}`,
+                        alignment: "center",
+                        margin: [0, 0, 0, 10]
+                    },
 
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-            doc.pipe(res);
+                    { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}` },
+                    { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}` },
+                    { text: `Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}` },
+                    { text: "", margin: [0, 0, 0, 10] },
 
-            // Header
-            doc.fontSize(16).text('LAPORAN KEUANGAN PERIODIK', { align: 'center' });
-            doc.moveDown(0.5);
-            doc.fontSize(12).text(`Periode: ${period === 'monthly' ? `${month}-${year}` : year}`, { align: 'center' });
-            doc.moveDown();
-
-            // Ringkasan
-            doc.fontSize(12).text(`Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`);
-            doc.text(`Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`);
-            doc.text(`Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
-            doc.moveDown();
-
-            // Siapkan data tabel
-            const table = {
-                title: "Rincian Transaksi",
-                headers: [
-                    { label: "No", property: "no", width: 30, renderer: null },
-                    { label: "Tanggal", property: "date", width: 60 },
-                    { label: "Tipe", property: "type", width: 60 },
-                    { label: "Kategori", property: "category", width: 80 },
-                    { label: "Wallet", property: "wallet", width: 80 },
-                    { label: "Jumlah", property: "amount", width: 90, align: 'right' },
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: [30, 60, 60, 70, 70, 70, "*"],
+                            body: [
+                                ["No", "Tanggal", "Tipe", "Kategori", "Wallet", "Jumlah", "Keterangan"],
+                                ...rows.map((tx, i) => [
+                                    i + 1,
+                                    tx.date,
+                                    tx.type,
+                                    tx.category,
+                                    tx.wallet,
+                                    `Rp${tx.amount.toLocaleString('id-ID')}`,
+                                    tx.description
+                                ])
+                            ]
+                        },
+                        layout: "lightHorizontalLines"
+                    }
                 ],
-                datas: rows.map((tx, i) => ({
-                    no: i + 1,
-                    date: tx.date,
-                    type: tx.type,
-                    category: tx.category,
-                    wallet: tx.wallet,
-                    amount: `Rp${tx.amount.toLocaleString('id-ID')}`
-                })),
+                styles: {
+                    header: {
+                        fontSize: 16,
+                        bold: true,
+                        alignment: "center",
+                        margin: [0, 0, 0, 10]
+                    }
+                },
+                defaultStyle: {
+                    font: "Roboto"
+                }
             };
 
-            // Render tabel
-            await doc.table(table, {
-                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
-                prepareRow: (row, i) => doc.font('Helvetica').fontSize(9),
-            });
+            const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
-            doc.end();
+            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+
+            pdfDoc.pipe(res);
+            pdfDoc.end();
         } else {
             return res.status(400).json({ message: "Format belum didukung, hanya 'pdf' untuk saat ini." });
         }
