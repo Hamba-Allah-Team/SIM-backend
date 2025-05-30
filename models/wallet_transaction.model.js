@@ -1,5 +1,5 @@
 module.exports = (sequelize, Sequelize) => {
-    const WalletTransaction = sequelize.define("wallet_transactions", {
+    const WalletTransaction = sequelize.define("wallet_transaction", {
         transaction_id: {
             type: Sequelize.INTEGER,
             primaryKey: true,
@@ -19,15 +19,24 @@ module.exports = (sequelize, Sequelize) => {
             allowNull: false
         },
         transaction_type: {
-            type: Sequelize.ENUM("income", "expense"),
+            type: Sequelize.ENUM("income", "expense", "transfer_out", "transfer_in"),
             allowNull: false
+        },
+        category_id: {
+            type: Sequelize.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'transaction_categories',
+                key: 'category_id'
+            },
+            onDelete: 'SET NULL'
         },
         source_or_usage: {
             type: Sequelize.TEXT,
             allowNull: true
         },
         transaction_date: {
-            type: Sequelize.DATE, // Sequelize.DATE supports timezone by default
+            type: Sequelize.DATE,
             allowNull: false
         },
         balance: {
@@ -59,9 +68,9 @@ module.exports = (sequelize, Sequelize) => {
         timestamps: true,
         createdAt: "created_at",
         updatedAt: "updated_at",
-        paranoid: true, // aktifkan soft delete
-        deletedAt: "deleted_at", // tentukan nama kolom soft delete
-        underscored: true // optional: agar otomatis pakai snake_case untuk semua kolom
+        paranoid: true,
+        deletedAt: "deleted_at",
+        underscored: true
     });
 
     WalletTransaction.associate = (models) => {
@@ -72,6 +81,10 @@ module.exports = (sequelize, Sequelize) => {
         WalletTransaction.belongsTo(models.user, {
             foreignKey: "user_id",
             as: "user"
+        });
+        WalletTransaction.belongsTo(models.transaction_category, {
+            foreignKey: "category_id",
+            as: "category"
         });
     };
 

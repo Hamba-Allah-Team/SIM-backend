@@ -17,9 +17,15 @@ async function recalculateWalletBalances(wallet_id) {
     for (const tx of transactions) {
         const amount = Number(tx.amount);
 
-        if (tx.transaction_type === "income") {
+        if (
+            tx.transaction_type === "income" ||
+            tx.transaction_type === "transfer_in"
+        ) {
             runningBalance += amount;
-        } else if (tx.transaction_type === "expense") {
+        } else if (
+            tx.transaction_type === "expense" ||
+            tx.transaction_type === "transfer_out"
+        ) {
             runningBalance -= amount;
         }
 

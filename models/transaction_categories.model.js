@@ -1,6 +1,6 @@
 module.exports = (sequelize, Sequelize) => {
-    const Wallet = sequelize.define("wallets", {
-        wallet_id: {
+    const TransactionCategory = sequelize.define("transaction_categories", {
+        category_id: {
             type: Sequelize.INTEGER,
             primaryKey: true,
             autoIncrement: true
@@ -9,18 +9,22 @@ module.exports = (sequelize, Sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false,
             references: {
-                model: 'mosques', // pastikan sesuai nama model yang kamu pakai
+                model: 'mosques',
                 key: 'mosque_id'
             },
             onDelete: 'CASCADE'
         },
-        wallet_name: {
+        category_name: {
             type: Sequelize.STRING,
             allowNull: false
         },
-        wallet_type: {
-            type: Sequelize.ENUM("cash", "bank", "ewallet", "other"),
+        category_type: {
+            type: Sequelize.ENUM("income", "expense"),
             allowNull: false
+        },
+        description: {
+            type: Sequelize.TEXT,
+            allowNull: true
         },
         created_at: {
             type: Sequelize.DATE,
@@ -29,24 +33,30 @@ module.exports = (sequelize, Sequelize) => {
         updated_at: {
             type: Sequelize.DATE,
             defaultValue: Sequelize.NOW
+        },
+        deleted_at: {
+            type: Sequelize.DATE,
+            allowNull: true
         }
     }, {
         timestamps: true,
         createdAt: "created_at",
         updatedAt: "updated_at",
+        paranoid: true,
+        deletedAt: "deleted_at",
         underscored: true
     });
 
-    Wallet.associate = (models) => {
-        Wallet.hasMany(models.wallet_transaction, {
-            foreignKey: "wallet_id",
-            as: "transactions"
-        });
-        Wallet.belongsTo(models.mosques, {
+    TransactionCategory.associate = (models) => {
+        TransactionCategory.belongsTo(models.mosques, {
             foreignKey: "mosque_id",
             as: "mosque"
         });
+        TransactionCategory.hasMany(models.wallet_transaction, {
+            foreignKey: "category_id",
+            as: "wallet_transactions"
+        });
     };
 
-    return Wallet;
+    return TransactionCategory;
 };
