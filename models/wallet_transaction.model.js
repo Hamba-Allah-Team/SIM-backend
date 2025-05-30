@@ -19,7 +19,7 @@ module.exports = (sequelize, Sequelize) => {
             allowNull: false
         },
         transaction_type: {
-            type: Sequelize.ENUM("income", "expense", "transfer_out", "transfer_in"),
+            type: Sequelize.ENUM("income", "expense", "transfer_out", "transfer_in", "initial_balance"),
             allowNull: false
         },
         category_id: {
