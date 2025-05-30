@@ -19,7 +19,8 @@ async function recalculateWalletBalances(wallet_id) {
 
         if (
             tx.transaction_type === "income" ||
-            tx.transaction_type === "transfer_in"
+            tx.transaction_type === "transfer_in" ||
+            tx.transaction_type === "initial_balance"
         ) {
             runningBalance += amount;
         } else if (

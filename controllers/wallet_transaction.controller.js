@@ -739,31 +739,98 @@ exports.getPeriodicReportExport = async (req, res) => {
             };
         });
 
+        // if (format === 'pdf') {
+        //     const docDefinition = {
+        //         content: [
+        //             { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
+        //             {
+        //                 text: `Periode: ${period === 'monthly' ? `${month}-${year}` : year}`,
+        //                 alignment: "center",
+        //                 margin: [0, 0, 0, 10]
+        //             },
+
+        //             { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}` },
+        //             { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}` },
+        //             { text: `Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}` },
+        //             { text: "", margin: [0, 0, 0, 10] },
+
+        //             {
+        //                 table: {
+        //                     headerRows: 1,
+        //                     widths: [30, 60, 60, 70, 70, 70, "*"],
+        //                     body: [
+        //                         ["No", "Tanggal", "Tipe", "Kategori", "Wallet", "Jumlah", "Keterangan"],
+        //                         ...rows.map((tx, i) => [
+        //                             i + 1,
+        //                             tx.date,
+        //                             tx.type,
+        //                             tx.category,
+        //                             tx.wallet,
+        //                             `Rp${tx.amount.toLocaleString('id-ID')}`,
+        //                             tx.description
+        //                         ])
+        //                     ]
+        //                 },
+        //                 layout: "lightHorizontalLines"
+        //             }
+        //         ],
+        //         styles: {
+        //             header: {
+        //                 fontSize: 16,
+        //                 bold: true,
+        //                 alignment: "center",
+        //                 margin: [0, 0, 0, 10]
+        //             }
+        //         },
+        //         defaultStyle: {
+        //             font: "Roboto"
+        //         }
+        //     };
+
+        //     const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+        //     const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+        //     res.setHeader("Content-Type", "application/pdf");
+        //     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+
+        //     pdfDoc.pipe(res);
+        //     pdfDoc.end();
+        // } 
         if (format === 'pdf') {
+            const moment = require("moment");
+            moment.locale('id');
+
             const docDefinition = {
                 content: [
                     { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
                     {
-                        text: `Periode: ${period === 'monthly' ? `${month}-${year}` : year}`,
+                        text: `Periode: ${period === 'monthly' ? moment(`${year}-${month}-01`).format('MMMM YYYY') : `Tahun ${year}`}`,
                         alignment: "center",
                         margin: [0, 0, 0, 10]
                     },
 
-                    { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}` },
-                    { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}` },
-                    { text: `Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}` },
-                    { text: "", margin: [0, 0, 0, 10] },
+                    { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
+                    { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
+                    { text: `Saldo Bersih : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 10] },
 
                     {
                         table: {
                             headerRows: 1,
-                            widths: [30, 60, 60, 70, 70, 70, "*"],
+                            widths: [25, 70, 50, 70, 70, 80, "*"],
                             body: [
-                                ["No", "Tanggal", "Tipe", "Kategori", "Wallet", "Jumlah", "Keterangan"],
+                                [
+                                    { text: "No", bold: true },
+                                    { text: "Tanggal", bold: true },
+                                    { text: "Jenis", bold: true },
+                                    { text: "Kategori", bold: true },
+                                    { text: "Dompet", bold: true },
+                                    { text: "Nominal", bold: true },
+                                    { text: "Keterangan", bold: true }
+                                ],
                                 ...rows.map((tx, i) => [
                                     i + 1,
-                                    tx.date,
-                                    tx.type,
+                                    moment(tx.date).format("dddd, DD MMMM YYYY"),
+                                    tx.type === "income" ? "Pemasukan" : "Pengeluaran",
                                     tx.category,
                                     tx.wallet,
                                     `Rp${tx.amount.toLocaleString('id-ID')}`,
@@ -772,7 +839,9 @@ exports.getPeriodicReportExport = async (req, res) => {
                             ]
                         },
                         layout: "lightHorizontalLines"
-                    }
+                    },
+
+                    { text: `\nDicetak pada: ${moment().format("dddd, DD MMMM YYYY HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
                 ],
                 styles: {
                     header: {
@@ -792,7 +861,6 @@ exports.getPeriodicReportExport = async (req, res) => {
             const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
             res.setHeader("Content-Type", "application/pdf");
             res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
-
             pdfDoc.pipe(res);
             pdfDoc.end();
         } else {
