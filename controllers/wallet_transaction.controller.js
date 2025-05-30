@@ -1,4 +1,5 @@
 const db = require("../models");
+const PDFDocument = require('pdfkit');
 const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
@@ -677,5 +678,87 @@ exports.filterTransactions = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Gagal memfilter transaksi" });
+    }
+};
+
+exports.getPeriodicReportExport = async (req, res) => {
+    try {
+        const { period, year, month, format } = req.query;
+        const userId = req.userId;
+
+        if (!period || !year || (period === "monthly" && !month) || !format) {
+            return res.status(400).json({ message: "Parameter tidak lengkap." });
+        }
+
+        const startDate = new Date(period === "monthly" ? `${year}-${month}-01` : `${year}-01-01`);
+        const endDate = new Date(period === "monthly"
+            ? new Date(year, month, 0)
+            : new Date(`${parseInt(year) + 1}-01-01`)
+        );
+
+        const transactions = await db.wallet_transaction.findAll({
+            where: {
+                user_id: userId,
+                transaction_date: { [Op.between]: [startDate, endDate] },
+                transaction_type: { [Op.in]: ['income', 'expense'] },
+                deleted_at: null
+            },
+            include: [
+                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] },
+                { model: db.transaction_category, as: 'category', attributes: ['category_name'] }
+            ],
+            order: [['transaction_date', 'ASC']]
+        });
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        const rows = transactions.map(tx => {
+            const amount = Number(tx.amount);
+            if (tx.transaction_type === 'income') totalIncome += amount;
+            else if (tx.transaction_type === 'expense') totalExpense += amount;
+
+            return {
+                date: tx.transaction_date.toISOString().split('T')[0],
+                type: tx.transaction_type,
+                category: tx.category?.category_name || '',
+                wallet: tx.wallet?.wallet_name || '',
+                description: tx.source_or_usage || '',
+                amount
+            };
+        });
+
+        // PDF export
+        if (format === 'pdf') {
+            const doc = new PDFDocument({ margin: 30, size: 'A4' });
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=laporan_${period}_${year}${month ? '_' + month : ''}.pdf`);
+            doc.pipe(res);
+
+            doc.fontSize(16).text('Laporan Keuangan Periodik', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(12).text(`Periode: ${period === 'monthly' ? `${month}-${year}` : year}`);
+            doc.moveDown();
+
+            doc.fontSize(12).text(`Total Pemasukan: Rp${totalIncome.toLocaleString('id-ID')}`);
+            doc.text(`Total Pengeluaran: Rp${totalExpense.toLocaleString('id-ID')}`);
+            doc.text(`Saldo Bersih: Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
+            doc.moveDown();
+
+            doc.text('Rincian Transaksi:', { underline: true });
+            doc.moveDown(0.5);
+
+            rows.forEach((tx, i) => {
+                doc.text(`${i + 1}. ${tx.date} | ${tx.type} | ${tx.category} | ${tx.wallet} | Rp${tx.amount.toLocaleString('id-ID')}`);
+                if (tx.description) doc.text(`    ${tx.description}`);
+            });
+
+            doc.end();
+        } else {
+            return res.status(400).json({ message: "Format belum didukung, hanya 'pdf' untuk saat ini." });
+        }
+
+    } catch (error) {
+        console.error("Export error:", error);
+        res.status(500).json({ message: "Gagal export laporan." });
     }
 };
