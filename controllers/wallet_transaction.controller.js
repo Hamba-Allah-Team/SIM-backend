@@ -727,30 +727,59 @@ exports.getPeriodicReportExport = async (req, res) => {
             };
         });
 
-        // PDF export
         if (format === 'pdf') {
-            const doc = new PDFDocument({ margin: 30, size: 'A4' });
+            const doc = new PDFDocument({ margin: 40, size: 'A4' });
+            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=laporan_${period}_${year}${month ? '_' + month : ''}.pdf`);
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
             doc.pipe(res);
 
-            doc.fontSize(16).text('Laporan Keuangan Periodik', { align: 'center' });
-            doc.moveDown();
-            doc.fontSize(12).text(`Periode: ${period === 'monthly' ? `${month}-${year}` : year}`);
-            doc.moveDown();
-
-            doc.fontSize(12).text(`Total Pemasukan: Rp${totalIncome.toLocaleString('id-ID')}`);
-            doc.text(`Total Pengeluaran: Rp${totalExpense.toLocaleString('id-ID')}`);
-            doc.text(`Saldo Bersih: Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
+            // Header
+            doc.fontSize(16).text('LAPORAN KEUANGAN PERIODIK', { align: 'center' });
+            doc.moveDown(0.5);
+            doc.fontSize(12).text(`Periode: ${period === 'monthly' ? `${month}-${year}` : year}`, { align: 'center' });
             doc.moveDown();
 
-            doc.text('Rincian Transaksi:', { underline: true });
+            // Ringkasan
+            doc.fontSize(12).text(`Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`);
+            doc.text(`Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`);
+            doc.text(`Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
+            doc.moveDown();
+
+            let y = doc.y;
+            doc.font('Helvetica-Bold').fontSize(10);
+            doc.text('No', 40, y, { width: 25 });
+            doc.text('Tanggal', 70, y, { width: 60 });
+            doc.text('Tipe', 135, y, { width: 50 });
+            doc.text('Kategori', 190, y, { width: 80 });
+            doc.text('Wallet', 275, y, { width: 80 });
+            doc.text('Jumlah', 360, y, { width: 90, align: 'right' });
             doc.moveDown(0.5);
 
+
+            // Data Baris
             rows.forEach((tx, i) => {
-                doc.text(`${i + 1}. ${tx.date} | ${tx.type} | ${tx.category} | ${tx.wallet} | Rp${tx.amount.toLocaleString('id-ID')}`);
-                if (tx.description) doc.text(`    ${tx.description}`);
+                if (doc.y > 720) doc.addPage(); // jaga batas bawah halaman
+
+                y = doc.y; // baris baru
+                doc.font('Helvetica').fontSize(10);
+                doc.text(String(i + 1), 40, y, { width: 25 });
+                doc.text(tx.date, 70, y, { width: 60 });
+                doc.text(tx.type, 135, y, { width: 50 });
+                doc.text(tx.category, 190, y, { width: 80 });
+                doc.text(tx.wallet, 275, y, { width: 80 });
+                doc.text(`Rp${tx.amount.toLocaleString('id-ID')}`, 360, y, { width: 90, align: 'right' });
+
+                doc.moveDown(0.3);
+
+                if (tx.description) {
+                    doc.fontSize(9).fillColor('gray');
+                    doc.text(`Keterangan: ${tx.description}`, 70, doc.y, { width: 420 });
+                    doc.fillColor('black').moveDown(0.5);
+                }
             });
+
 
             doc.end();
         } else {

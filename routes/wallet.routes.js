@@ -43,6 +43,7 @@ module.exports = function (app) {
 
     app.get("/api/finance/public-summary/:mosqueId", walletTransactionController.getPublicSummary);
     app.get("/api/finance/report", verifyToken, walletTransactionController.getPeriodicReport);
+    app.get("/api/finance/report/export", verifyToken, walletTransactionController.getPeriodicReportExport);
     app.get("/api/wallets/:mosqueId/balance-date", verifyToken, walletTransactionController.getWalletBalancesByDate);
     app.get("/api/finance/:mosqueId/report/category", verifyToken, walletTransactionController.getTransactionsByCategoryForMosque);
     app.get("/api/finance/filter", verifyToken, walletTransactionController.filterTransactions);
