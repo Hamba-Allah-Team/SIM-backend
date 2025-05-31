@@ -1,5 +1,16 @@
 const db = require("../models");
 const PDFDocument = require('pdfkit');
+const PdfPrinter = require("pdfmake");
+const path = require("path");
+const fonts = {
+    Roboto: {
+        normal: path.join(__dirname, "..", "assets", "fonts", "Roboto-Regular.ttf"),
+        bold: path.join(__dirname, "..", "assets", "fonts", "Roboto-Medium.ttf"),
+        italics: path.join(__dirname, "..", "assets", "fonts", "Roboto-Italic.ttf"),
+        bolditalics: path.join(__dirname, "..", "assets", "fonts", "Roboto-MediumItalic.ttf"),
+    }
+};
+const printer = new PdfPrinter(fonts);
 const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
@@ -370,6 +381,7 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
             return {
                 wallet_id: wallet.wallet_id,
                 mosque_id: wallet.mosque_id,
+                wallet_name: wallet.wallet_name,
                 wallet_type: wallet.wallet_type,
                 balance: latestTransaction ? parseFloat(latestTransaction.balance) : 0
             };
@@ -696,6 +708,33 @@ exports.getPeriodicReportExport = async (req, res) => {
             : new Date(`${parseInt(year) + 1}-01-01`)
         );
 
+        // ⬇️ Tambahan: cari mosque_id dari user
+        const user = await db.user.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User tidak ditemukan." });
+        }
+        const mosqueId = user.mosque_id;
+
+        const wallets = await db.wallet.findAll({
+            where: {
+                deleted_at: null,
+                mosque_id: mosqueId
+            }
+        });
+
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        const saldoAwal = await db.wallet_transaction.sum('amount', {
+            where: {
+                transaction_type: 'initial_balance',
+                deleted_at: null,
+                wallet_id: { [Op.in]: walletIds },
+                transaction_date: { [Op.lte]: startDate } // gunakan Op.lte untuk termasuk tanggal awal
+            }
+        }) || 0;
+
+
+        // Ambil transaksi untuk periode
         const transactions = await db.wallet_transaction.findAll({
             where: {
                 user_id: userId,
@@ -710,9 +749,24 @@ exports.getPeriodicReportExport = async (req, res) => {
             order: [['transaction_date', 'ASC']]
         });
 
+        // Ambil juga initial_balance yang ada dalam periode ini (opsional: ditampilkan di tabel)
+        const initialBalances = await db.wallet_transaction.findAll({
+            where: {
+                transaction_type: 'initial_balance',
+                deleted_at: null,
+                wallet_id: { [Op.in]: walletIds },
+                transaction_date: { [Op.between]: [startDate, endDate] }
+            },
+            include: [
+                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] }
+            ],
+            order: [['transaction_date', 'ASC']]
+        });
+
         let totalIncome = 0;
         let totalExpense = 0;
-        const rows = transactions.map(tx => {
+
+        const incomeExpenseRows = transactions.map(tx => {
             const amount = Number(tx.amount);
             if (tx.transaction_type === 'income') totalIncome += amount;
             else if (tx.transaction_type === 'expense') totalExpense += amount;
@@ -727,61 +781,89 @@ exports.getPeriodicReportExport = async (req, res) => {
             };
         });
 
+        const initialBalanceRows = initialBalances.map(tx => ({
+            date: tx.transaction_date.toISOString().split('T')[0],
+            type: 'initial_balance',
+            category: '-',
+            wallet: tx.wallet?.wallet_name || '',
+            description: tx.source_or_usage || 'Saldo Awal',
+            amount: Number(tx.amount)
+        }));
+
+        const allRows = incomeExpenseRows.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const saldoBersih = saldoAwal + totalIncome - totalExpense;
+
         if (format === 'pdf') {
-            const doc = new PDFDocument({ margin: 40, size: 'A4' });
-            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+            const moment = require("moment");
+            moment.locale('id');
 
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-            doc.pipe(res);
+            const docDefinition = {
+                content: [
+                    { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
+                    {
+                        text: `Periode: ${period === 'monthly' ? moment(`${year}-${month}-01`).format('MMMM YYYY') : `Tahun ${year}`}`,
+                        alignment: "center",
+                        margin: [0, 0, 0, 10]
+                    },
 
-            // Header
-            doc.fontSize(16).text('LAPORAN KEUANGAN PERIODIK', { align: 'center' });
-            doc.moveDown(0.5);
-            doc.fontSize(12).text(`Periode: ${period === 'monthly' ? `${month}-${year}` : year}`, { align: 'center' });
-            doc.moveDown();
+                    { text: `Saldo Awal : Rp${saldoAwal.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
+                    { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
+                    { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
+                    { text: `Saldo Bersih : Rp${saldoBersih.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 10] },
 
-            // Ringkasan
-            doc.fontSize(12).text(`Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`);
-            doc.text(`Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`);
-            doc.text(`Saldo Bersih      : Rp${(totalIncome - totalExpense).toLocaleString('id-ID')}`);
-            doc.moveDown();
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: [25, 70, 50, 70, 70, 80, "*"],
+                            body: [
+                                [
+                                    { text: "No", bold: true },
+                                    { text: "Tanggal", bold: true },
+                                    { text: "Jenis", bold: true },
+                                    { text: "Kategori", bold: true },
+                                    { text: "Dompet", bold: true },
+                                    { text: "Nominal", bold: true },
+                                    { text: "Keterangan", bold: true }
+                                ],
+                                ...allRows.map((tx, i) => [
+                                    i + 1,
+                                    moment(tx.date).format("dddd, DD MMMM YYYY"),
+                                    tx.type === "income"
+                                        ? "Pemasukan"
+                                        : tx.type === "expense"
+                                            ? "Pengeluaran"
+                                            : "Saldo Awal",
+                                    tx.category,
+                                    tx.wallet,
+                                    `Rp${tx.amount.toLocaleString('id-ID')}`,
+                                    tx.description
+                                ])
+                            ]
+                        },
+                        layout: "lightHorizontalLines"
+                    },
 
-            let y = doc.y;
-            doc.font('Helvetica-Bold').fontSize(10);
-            doc.text('No', 40, y, { width: 25 });
-            doc.text('Tanggal', 70, y, { width: 60 });
-            doc.text('Tipe', 135, y, { width: 50 });
-            doc.text('Kategori', 190, y, { width: 80 });
-            doc.text('Wallet', 275, y, { width: 80 });
-            doc.text('Jumlah', 360, y, { width: 90, align: 'right' });
-            doc.moveDown(0.5);
-
-
-            // Data Baris
-            rows.forEach((tx, i) => {
-                if (doc.y > 720) doc.addPage(); // jaga batas bawah halaman
-
-                y = doc.y; // baris baru
-                doc.font('Helvetica').fontSize(10);
-                doc.text(String(i + 1), 40, y, { width: 25 });
-                doc.text(tx.date, 70, y, { width: 60 });
-                doc.text(tx.type, 135, y, { width: 50 });
-                doc.text(tx.category, 190, y, { width: 80 });
-                doc.text(tx.wallet, 275, y, { width: 80 });
-                doc.text(`Rp${tx.amount.toLocaleString('id-ID')}`, 360, y, { width: 90, align: 'right' });
-
-                doc.moveDown(0.3);
-
-                if (tx.description) {
-                    doc.fontSize(9).fillColor('gray');
-                    doc.text(`Keterangan: ${tx.description}`, 70, doc.y, { width: 420 });
-                    doc.fillColor('black').moveDown(0.5);
+                    { text: `\nDicetak pada: ${moment().format("dddd, DD MMMM YYYY HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
+                ],
+                styles: {
+                    header: {
+                        fontSize: 16,
+                        bold: true,
+                        alignment: "center",
+                        margin: [0, 0, 0, 10]
+                    }
+                },
+                defaultStyle: {
+                    font: "Roboto"
                 }
-            });
+            };
 
-
-            doc.end();
+            const pdfDoc = printer.createPdfKitDocument(docDefinition);
+            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+            pdfDoc.pipe(res);
+            pdfDoc.end();
         } else {
             return res.status(400).json({ message: "Format belum didukung, hanya 'pdf' untuk saat ini." });
         }

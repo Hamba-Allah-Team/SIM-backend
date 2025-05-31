@@ -15,7 +15,7 @@ module.exports = {
       CREATE TYPE wallet_type_enum AS ENUM ('cash', 'bank', 'ewallet', 'other');
     `);
     await queryInterface.sequelize.query(`
-      CREATE TYPE transaction_type_enum AS ENUM ('income', 'expense', 'transfer_in', 'transfer_out');
+      CREATE TYPE transaction_type_enum AS ENUM ('income', 'expense', 'transfer_in', 'transfer_out', 'initial_balance');
     `);
     await queryInterface.sequelize.query(`
       CREATE TYPE reservation_status_enum AS ENUM ('pending', 'approved', 'rejected', 'completed');

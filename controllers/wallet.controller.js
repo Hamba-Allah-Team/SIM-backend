@@ -1,23 +1,22 @@
 const db = require("../models");
 const Wallet = db.wallet;
+const WalletTransactions = db.wallet_transaction;
 const { Op } = db.Sequelize;
+const { recalculateWalletBalances } = require("../utils/finance");
 
-// 📥 CREATE wallet
 exports.createWallet = async (req, res) => {
     try {
-        const { mosque_id, wallet_type, wallet_name } = req.body;
+        const { mosque_id, wallet_type, wallet_name, initial_balance } = req.body;
+        const user_id = req.userId;
 
         if (!mosque_id || !wallet_type || !wallet_name) {
             return res.status(400).json({ message: "mosque_id, wallet_type, and wallet_name are required." });
         }
 
-        // Cek jika wallet_type = 'cash', hanya boleh satu per masjid
+        // Cek jika wallet_type cash sudah ada
         if (wallet_type === 'cash') {
             const existingCash = await Wallet.findOne({
-                where: {
-                    mosque_id,
-                    wallet_type: 'cash'
-                }
+                where: { mosque_id, wallet_type: 'cash', deleted_at: null } // Hindari wallet soft-deleted
             });
             if (existingCash) {
                 return res.status(400).json({
@@ -26,12 +25,9 @@ exports.createWallet = async (req, res) => {
             }
         }
 
-        // Cek jika wallet_name sudah ada untuk masjid ini
+        // Cek nama dompet unik dalam 1 masjid
         const existingName = await Wallet.findOne({
-            where: {
-                mosque_id,
-                wallet_name
-            }
+            where: { mosque_id, wallet_name, deleted_at: null }
         });
         if (existingName) {
             return res.status(400).json({
@@ -39,12 +35,24 @@ exports.createWallet = async (req, res) => {
             });
         }
 
-        // Buat wallet baru
-        const newWallet = await Wallet.create({
-            mosque_id,
-            wallet_type,
-            wallet_name
-        });
+        // Buat dompet baru
+        const newWallet = await Wallet.create({ mosque_id, wallet_type, wallet_name });
+
+        // Tambah transaksi saldo awal jika diperlukan
+        if (initial_balance && parseFloat(initial_balance) > 0) {
+            await WalletTransactions.create({
+                wallet_id: newWallet.wallet_id,
+                amount: parseFloat(initial_balance),
+                transaction_type: 'initial_balance', // enum sesuai model
+                source_or_usage: 'Saldo awal',
+                transaction_date: new Date(),
+                balance: 0, // akan diperbarui oleh fungsi kalkulasi
+                user_id: user_id || null
+            });
+
+            // Hitung ulang saldo
+            await recalculateWalletBalances(newWallet.wallet_id);
+        }
 
         res.status(201).json(newWallet);
 
