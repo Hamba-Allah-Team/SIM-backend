@@ -17,11 +17,6 @@ exports.signup = async (req, res) => {
       status,
       mosque_name,
       mosque_address,
-      mosque_description,
-      mosque_phone_whatsapp,
-      mosque_email,
-      mosque_facebook,
-      mosque_instagram,
     } = req.body;
 
     // Validasi input wajib
@@ -43,7 +38,7 @@ exports.signup = async (req, res) => {
 
     const lowerCaseEmail = email.toLowerCase();
 
-    const existingUser = await User.findOne({ where: { lowerCaseEmail } });
+    const existingUser = await User.findOne({ where: { email: lowerCaseEmail } });
     if (existingUser) {
       return res.status(409).send({ message: "Email sudah terdaftar." });
     }
@@ -52,13 +47,15 @@ exports.signup = async (req, res) => {
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 30);
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     // Buat user baru
     const user = await User.create(
       {
         mosque_id: null,
         username,
         email: lowerCaseEmail,
-        password: bcrypt.hashSync(password, 8),
+        password: hashedPassword,
         name,
         role: role || "admin",
         status: status || "active",
@@ -67,7 +64,7 @@ exports.signup = async (req, res) => {
       { transaction: t }
     );
 
-    let mosqueId = req.body.mosque_id;
+    let mosqueId = req.body.mosque_id;  
 
     // Jika user adalah admin buat masjid baru
     if (!mosqueId && user.role === "admin") {
@@ -75,11 +72,6 @@ exports.signup = async (req, res) => {
         {
           name: mosque_name,
           address: mosque_address,
-          description: mosque_description || null,
-          phone_whatsapp: mosque_phone_whatsapp || null,
-          email: mosque_email || null,
-          facebook: mosque_facebook || null,
-          instagram: mosque_instagram || null,
         },
         { transaction: t }
       );
