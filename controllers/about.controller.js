@@ -43,6 +43,11 @@ exports.updateAbout = async (req, res) => {
 
     const mosque_id = user.mosque_id;
 
+    const fs = require("fs");
+    const path = require("path");
+
+    const deleteImage = req.body.deleteImage === "true";
+
     const {
       name,
       address,
@@ -82,19 +87,6 @@ exports.updateAbout = async (req, res) => {
       }
     }
 
-    // Validasi longitude dan latitude (optional, tapi kalau ada harus berupa angka)
-    if (longitude && isNaN(parseFloat(longitude))) {
-      return res.status(400).send({
-        message: "Longitude harus berupa angka.",
-      });
-    }
-
-    if (latitude && isNaN(parseFloat(latitude))) {
-      return res.status(400).send({
-        message: "Latitude harus berupa angka.",
-      });
-    }
-
     const mosque = await Mosque.findByPk(mosque_id);
     if (!mosque) {
       return res.status(404).send({ message: "Data masjid tidak ditemukan." });
@@ -103,41 +95,55 @@ exports.updateAbout = async (req, res) => {
     // Proses update gambar, jika ada file baru di req.file
     let imageFilename = mosque.image; // default gambar lama
 
-    if (req.file) {
-      if (!isValidImage(req.file)) {
-        return res.status(400).send({
-          message:
-            "Format gambar tidak valid. Hanya diperbolehkan: PNG, JPG, JPEG, WEBP.",
-        });
+    if (deleteImage) {
+      if (mosque.image) {
+        const imagePath = path.join(__dirname, "../uploads", mosque.image);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
       }
+      imageFilename = null;
+    } else if (req.file) {
+      if (!isValidImage(req.file)) {
+        return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
+      }
+      if (mosque.image) {
+        const imagePath = path.join(__dirname, "../uploads", mosque.image);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+
       imageFilename = req.file.filename;
     }
 
     // Validasi longitude dan latitude (optional, harus angka jika diisi)
-    if (longitude !== undefined && isNaN(parseFloat(longitude))) {
+    if (longitude !== undefined && longitude !== null && longitude.trim() !== "" && isNaN(parseFloat(longitude))) {
       return res.status(400).send({
         message: "Longitude harus berupa angka.",
       });
     }
 
-    if (latitude !== undefined && isNaN(parseFloat(latitude))) {
+    if (latitude !== undefined && latitude !== null && latitude.trim() !== "" && isNaN(parseFloat(latitude))) {
       return res.status(400).send({
         message: "Latitude harus berupa angka.",
       });
     }
+
     
     await mosque.update({
       name,
       address,
-      description,
+      description: description ?? "",      // jika undefined jadi string kosong
       image: imageFilename,
-      phone_whatsapp,
-      email,
-      facebook,
-      instagram,
-      longitude: longitude !== undefined ? parseFloat(longitude) : mosque.longitude,
-      latitude: latitude !== undefined ? parseFloat(latitude) : mosque.latitude,
+      phone_whatsapp: phone_whatsapp ?? "",
+      email: email ?? "",
+      facebook: facebook ?? "",
+      instagram: instagram ?? "",
+      longitude: longitude && longitude.trim() !== "" ? parseFloat(longitude) : null,
+      latitude: latitude && latitude.trim() !== "" ? parseFloat(latitude) : null,
     });
+
 
     res.status(200).send({ message: "Profil masjid berhasil diperbarui." });
   } catch (err) {

@@ -36,11 +36,15 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
+      password: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
       email: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      transaction_number: {
+      proof_number: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -58,22 +62,6 @@ module.exports = {
       },
       mosque_address: {
         type: Sequelize.TEXT,
-        allowNull: true,
-      },
-      mosque_phone_whatsapp: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_email: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_facebook: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_instagram: {
-        type: Sequelize.STRING,
         allowNull: true,
       },
       submitted_at: {

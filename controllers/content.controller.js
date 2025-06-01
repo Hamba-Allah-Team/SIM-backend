@@ -24,18 +24,18 @@ exports.createContent = async (req, res) => {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
 
-    // Validasi dan ambil file image dari req.file
-    if (!req.file) {
-      return res.status(400).send({ message: "Image wajib diupload." });
-    }
-    if (!isValidImage(req.file)) {
-      return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
-    }
+    let imageFilename = null;
+      if (req.file) {
+        if (!isValidImage(req.file)) {
+          return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
+        }
+        imageFilename = req.file.filename;
+      }
 
     const content = await Content.create({
       title,
       content_description,
-      image: req.file.filename,
+      image: imageFilename,
       published_date,
       contents_type,
       user_id,
@@ -64,6 +64,11 @@ exports.updateContent = async (req, res) => {
 
     const mosque_id = user.mosque_id;
 
+    const fs = require("fs");
+    const path = require("path");
+
+    const deleteImage = req.body.deleteImage === "true";
+
     if (!title || !published_date || !contents_type) {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
@@ -76,11 +81,26 @@ exports.updateContent = async (req, res) => {
     }
 
     // Jika ada file image baru yang diupload, validasi dan gunakan filename baru
-    let imageFilename = article.image; // default pakai image lama
-    if (req.file) {
+    let imageFilename = article.image;
+    if (deleteImage) {
+      if (article.image) {
+        const imagePath = path.join(__dirname, "../uploads", article.image);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+      imageFilename = null;
+    } else if (req.file) {
       if (!isValidImage(req.file)) {
         return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
       }
+      if (article.image) {
+        const imagePath = path.join(__dirname, "../uploads", article.image);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+
       imageFilename = req.file.filename;
     }
 

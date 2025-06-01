@@ -17,18 +17,11 @@ exports.signup = async (req, res) => {
       status,
       mosque_name,
       mosque_address,
-      mosque_description,
-      mosque_phone_whatsapp,
-      mosque_email,
-      mosque_facebook,
-      mosque_instagram,
     } = req.body;
 
     // Validasi input wajib
     if (!username || !email || !password || !name) {
-      return res
-        .status(400)
-        .send({ message: "Semua kolom wajib diisi." });
+      return res.status(400).send({ message: "Semua kolom wajib diisi." });
     }
 
     // Validasi format email
@@ -43,8 +36,9 @@ exports.signup = async (req, res) => {
         .send({ message: "Kata sandi minimal harus 8 karakter." });
     }
 
-    // Cek apakah email sudah terdaftar
-    const existingUser = await User.findOne({ where: { email } });
+    const lowerCaseEmail = email.toLowerCase();
+
+    const existingUser = await User.findOne({ where: { email: lowerCaseEmail } });
     if (existingUser) {
       return res.status(409).send({ message: "Email sudah terdaftar." });
     }
@@ -53,13 +47,15 @@ exports.signup = async (req, res) => {
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 30);
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     // Buat user baru
     const user = await User.create(
       {
         mosque_id: null,
         username,
-        email,
-        password: bcrypt.hashSync(password, 8),
+        email: lowerCaseEmail,
+        password: hashedPassword,
         name,
         role: role || "admin",
         status: status || "active",
@@ -68,7 +64,7 @@ exports.signup = async (req, res) => {
       { transaction: t }
     );
 
-    let mosqueId = req.body.mosque_id;
+    let mosqueId = req.body.mosque_id;  
 
     // Jika user adalah admin buat masjid baru
     if (!mosqueId && user.role === "admin") {
@@ -76,11 +72,6 @@ exports.signup = async (req, res) => {
         {
           name: mosque_name,
           address: mosque_address,
-          description: mosque_description || null,
-          phone_whatsapp: mosque_phone_whatsapp || null,
-          email: mosque_email || null,
-          facebook: mosque_facebook || null,
-          instagram: mosque_instagram || null,
         },
         { transaction: t }
       );
@@ -108,7 +99,13 @@ exports.signin = async (req, res) => {
         .send({ message: "Email dan kata sandi wajib diisi." });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const lowerCaseEmail = email.toLowerCase();
+
+    const user = await User.findOne({
+      where: {
+        email: lowerCaseEmail,
+      },
+    });
 
     if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
@@ -122,7 +119,6 @@ exports.signin = async (req, res) => {
       });
     }
 
-    // Verifikasi password
     const passwordIsValid = bcrypt.compareSync(password, user.password);
     if (!passwordIsValid) {
       return res.status(401).send({
@@ -135,7 +131,7 @@ exports.signin = async (req, res) => {
     if (user.role === "admin" && user.status === "inactive") {
       return res.status(403).send({
         accessToken: null,
-        message: "Akun Anda tidak aktif. Silakan Lakukan Perpanjangan.",
+        message: "Account Inactive",
       });
     }
 

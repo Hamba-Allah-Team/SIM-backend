@@ -25,7 +25,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    transaction_number: {
+    password: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    proof_number: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -39,22 +43,6 @@ module.exports = (sequelize, DataTypes) => {
     },
     mosque_address: {
       type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    mosque_phone_whatsapp: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    mosque_email: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    mosque_facebook: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    mosque_instagram: {
-      type: DataTypes.STRING,
       allowNull: true,
     },
     status: {
