@@ -21,6 +21,7 @@ require("./routes/activation.routes")(app);
 require("./routes/reset-password.routes")(app);
 app.use("/uploads", express.static("uploads"));
 require("./routes/room.routes")(app);
+require("./routes/reservation.routes")(app);
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

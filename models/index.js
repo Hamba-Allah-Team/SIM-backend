@@ -32,6 +32,7 @@ db.activity = require("./activity.model.js")(sequelize, Sequelize);
 db.activations = require("./activation.model.js")(sequelize, Sequelize);
 db.reservation_room = require("./reservation_room.model.js")(sequelize, Sequelize);
 db.transaction_category = require("./transaction_categories.model.js")(sequelize, Sequelize);
+db.reservation = require("./reservation.model.js")(sequelize, Sequelize);
 
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
