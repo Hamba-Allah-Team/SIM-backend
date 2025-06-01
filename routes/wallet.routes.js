@@ -32,9 +32,9 @@ module.exports = function (app) {
     // Routes untuk Wallet Transactions
     app.post("/api/finance/transactions", verifyToken, walletTransactionController.createTransaction);
     app.get("/api/finance/transactions", verifyToken, walletTransactionController.getAllTransactions);
-    app.get("/api/finance/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.getTransactionById);
+    app.get("/api/finance/transactions/:transactionId", verifyToken, walletTransactionController.getTransactionById);
     app.put("/api/finance/transactions/:transactionId", verifyToken, walletTransactionController.updateTransaction);
-    app.delete("/api/finance/:walletId/transactions/:transactionId", verifyToken, walletTransactionController.deleteTransaction);
+    app.delete("/api/finance/transactions/:transactionId", verifyToken, walletTransactionController.deleteTransaction);
     app.patch("/api/finance/:walletId/transactions/:transactionId/restore", verifyToken, walletTransactionController.restoreTransaction);
 
     app.get('/api/wallets/:walletId/balance', verifyToken, walletTransactionController.getWalletWithBalance);
