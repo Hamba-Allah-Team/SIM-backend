@@ -21,6 +21,14 @@ exports.createReservation = async (req, res) => {
 
         const start = new Date('${reservation_date}T${start_time}');
         const end = new Date('${reservation_date}T${end_time}');
+        
+        if (phone_number && !/^\+?[0-9]+$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon hanya boleh berisi angka dan opsional tanda plus di depan." });
+        }
+
+        if (phone_number && !/^\d{10,15}$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon harus terdiri dari 10 hingga 15 digit." });
+        }
 
         if (start >= end) {
             return res.status(400).json({ message: "Waktu mulai harus lebih awal dari waktu selesai." });
@@ -189,6 +197,23 @@ exports.updateReservation = async (req, res) => {
 
         if (!existingReservation) {
             return res.status(404).send({ message: "Reservasi tidak ditemukan." });
+        }
+
+        if (phone_number && !/^\+?[0-9]+$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon hanya boleh berisi angka dan opsional tanda plus di depan." });
+        }
+
+        if (phone_number && !/^\d{10,15}$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon harus terdiri dari 10 hingga 15 digit." });
+        }
+
+        if (start >= end) {
+            return res.status(400).json({ message: "Waktu mulai harus lebih awal dari waktu selesai." });
+        }
+
+        const today = new Date();
+        if(new Date(reservation_date) < today) {
+            return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
         }
 
         // Update reservasi
