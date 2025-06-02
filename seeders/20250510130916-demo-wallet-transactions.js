@@ -2,60 +2,109 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    /**
-     * Add seed commands here.
-     *
-     * Example:
-     * await queryInterface.bulkInsert('People', [{
-     *   name: 'John Doe',
-     *   isBetaMember: false
-     * }], {});
-    */
-    await queryInterface.bulkInsert('wallet_transactions', [
-      {
-        wallet_id: 1, // pastikan wallet_id:1 ada
-        amount: 100000,
-        transaction_type: 'income',
-        source_or_usage: 'Donasi Jumat',
-        transaction_date: new Date(),
-        balance: 100000,
-        user_id: 1, // pastikan user_id:1 ada
+  up: async (queryInterface, Sequelize) => {
+    const now = new Date();
+    const userId = 1;
+
+    const data = [];
+
+    // === INITIAL BALANCE untuk 3 wallet ===
+    for (let i = 1; i <= 3; i++) {
+      data.push({
+        wallet_id: i,
+        amount: 500000,
+        transaction_type: 'initial_balance',
+        category_id: null,
+        source_or_usage: 'Saldo awal seeding',
+        transaction_date: new Date(now.getFullYear(), now.getMonth(), 1),
+        user_id: userId,
+        balance: 0,
         created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        wallet_id: 1,
-        amount: 25000,
-        transaction_type: 'expense',
-        source_or_usage: 'Beli air minum',
-        transaction_date: new Date(),
-        balance: 75000,
-        user_id: 1,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        wallet_id: 2, // bank wallet
-        amount: 200000,
-        transaction_type: 'income',
-        source_or_usage: 'Transfer donatur',
-        transaction_date: new Date(),
-        balance: 200000,
-        user_id: 1,
-        created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
+      });
+    }
+
+    // === INCOME & EXPENSE ===
+    const incomeCategories = [1, 4]; // Donasi Jumat, Transfer Donatur
+    const expenseCategories = [2, 3]; // Pembelian Air, Kegiatan Anak Yatim
+
+    for (let i = 1; i <= 3; i++) {
+      for (let j = 1; j <= 5; j++) {
+        // income
+        data.push({
+          wallet_id: i,
+          amount: 10000 * j,
+          transaction_type: 'income',
+          category_id: incomeCategories[j % incomeCategories.length],
+          source_or_usage: 'Pemasukan rutin #' + j,
+          transaction_date: new Date(now.getFullYear(), now.getMonth(), j + 1),
+          user_id: userId,
+          balance: 0,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        // expense
+        data.push({
+          wallet_id: i,
+          amount: 7000 * j,
+          transaction_type: 'expense',
+          category_id: expenseCategories[j % expenseCategories.length],
+          source_or_usage: 'Pengeluaran rutin #' + j,
+          transaction_date: new Date(now.getFullYear(), now.getMonth(), j + 1),
+          user_id: userId,
+          balance: 0,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
       }
-    ], {});
+    }
+
+    // === TRANSFER antar dompet ===
+    const transfers = [
+      { from: 1, to: 2 },
+      { from: 2, to: 3 },
+      { from: 3, to: 1 },
+    ];
+
+    for (let i = 0; i < transfers.length; i++) {
+      const { from, to } = transfers[i];
+      const amount = 25000 + i * 10000;
+      const tgl = new Date(now.getFullYear(), now.getMonth(), 20 + i);
+
+      // transfer_out
+      data.push({
+        wallet_id: from,
+        amount: amount,
+        transaction_type: 'transfer_out',
+        category_id: null,
+        source_or_usage: `Transfer ke dompet ${to}`,
+        transaction_date: tgl,
+        user_id: userId,
+        balance: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      // transfer_in
+      data.push({
+        wallet_id: to,
+        amount: amount,
+        transaction_type: 'transfer_in',
+        category_id: null,
+        source_or_usage: `Transfer dari dompet ${from}`,
+        transaction_date: tgl,
+        user_id: userId,
+        balance: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+    }
+
+    await queryInterface.bulkInsert('wallet_transactions', data, {});
   },
 
-  async down(queryInterface, Sequelize) {
-    /**
-     * Add commands to revert seed here.
-     *
-     * Example:
-     * await queryInterface.bulkDelete('People', null, {});
-     */
-    await queryInterface.bulkDelete('wallet_transactions', null, {});
-  }
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkDelete('wallet_transactions', { user_id: 2}, {});
+  },
 };
