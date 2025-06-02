@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --env-file=.env index.js",
     "dev": "node --watch --trace-warnings --env-file=.env index.js",
-    "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all",
+    "recalculate": "node scripts/recalculate-balances.js",
+    "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm run recalculate",
     "sequelize": "sequelize-cli"
   },
   "keywords": [],
