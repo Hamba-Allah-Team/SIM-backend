@@ -1,4 +1,5 @@
 const db = require("../models");
+const moment = require('moment');
 const PDFDocument = require('pdfkit');
 const PdfPrinter = require("pdfmake");
 const path = require("path");
@@ -556,15 +557,23 @@ exports.getLineStats = async (req, res) => {
                 break;
         }
 
-        const transactions = await WalletTransaction.findAll({
+        const transactions = await WalletTransactions.findAll({
+            include: [
+                {
+                    model: db.user,
+                    as: 'user',
+                    where: { mosque_id },
+                    attributes: []
+                }
+            ],
             where: {
-                mosque_id,
                 deleted_at: null,
                 created_at: { [Op.gte]: startDate.toDate() }
             },
             attributes: ['amount', 'transaction_type', 'created_at'],
             raw: true
         });
+
 
         const grouped = {};
 
