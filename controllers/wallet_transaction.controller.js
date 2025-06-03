@@ -394,19 +394,17 @@ exports.getWalletsByMosqueWithBalance = async (req, res) => {
     }
 };
 
-exports.getPublicSummary = async (req, res) => {
+exports.getFinancialSummaryForDashboard = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
 
-        // Ambil semua wallet milik mosque tertentu
         const wallets = await Wallets.findAll({
             where: { mosque_id: mosqueId },
-            attributes: ['wallet_id']
+            attributes: ['wallet_id', 'wallet_name']
         });
 
         const walletIds = wallets.map(w => w.wallet_id);
 
-        // Hitung total income dan expense dari semua transaksi aktif (non-soft-deleted)
         const [result] = await db.sequelize.query(`
             SELECT 
                 SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS total_income,
@@ -418,14 +416,200 @@ exports.getPublicSummary = async (req, res) => {
             type: db.Sequelize.QueryTypes.SELECT
         });
 
+        // Ambil saldo terakhir tiap dompet
+        const balances = await Promise.all(wallets.map(async (wallet) => {
+            const latestTx = await WalletTransactions.findOne({
+                where: { wallet_id: wallet.wallet_id, deleted_at: null },
+                order: [['transaction_date', 'DESC'], ['created_at', 'DESC']],
+                attributes: ['balance']
+            });
+            return {
+                wallet_id: wallet.wallet_id,
+                wallet_name: wallet.wallet_name,
+                balance: latestTx?.balance || 0
+            };
+        }));
+
+        const total_balance = balances.reduce((sum, w) => sum + parseFloat(w.balance), 0);
+
         res.json({
             total_income: parseFloat(result.total_income || 0),
-            total_expense: parseFloat(result.total_expense || 0)
+            total_expense: parseFloat(result.total_expense || 0),
+            net_balance: parseFloat(total_balance),
+            wallet_balances: balances
+        });
+    } catch (error) {
+        console.error("Error generating dashboard summary:", error);
+        res.status(500).json({ message: "Gagal mengambil ringkasan keuangan dashboard" });
+    }
+};
+
+exports.getRecentTransactions = async (req, res) => {
+    try {
+        const mosqueId = req.params.mosqueId;
+
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: ['wallet_id']
+        });
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        const recentTxs = await WalletTransactions.findAll({
+            where: {
+                wallet_id: { [Op.in]: walletIds },
+                deleted_at: null
+            },
+            include: [
+                { model: Wallets, as: 'wallet', attributes: ['wallet_name'] },
+                { model: TransactionCategory, as: 'category', attributes: ['category_name'] }
+            ],
+            order: [['transaction_date', 'DESC'], ['created_at', 'DESC']],
+            limit: 5
         });
 
+        const formatted = recentTxs.map(tx => ({
+            transaction_id: tx.transaction_id,
+            date: tx.transaction_date,
+            type: tx.transaction_type,
+            amount: tx.amount,
+            category: tx.category?.category_name || null,
+            wallet: tx.wallet?.wallet_name || null,
+            description: tx.source_or_usage
+        }));
+
+        res.json(formatted);
     } catch (error) {
-        console.error("Error generating public summary:", error);
-        res.status(500).json({ message: "Failed to fetch public financial summary" });
+        console.error("Error fetching recent transactions:", error);
+        res.status(500).json({ message: "Gagal mengambil transaksi terbaru" });
+    }
+};
+
+exports.getTopCategories = async (req, res) => {
+    try {
+        const { mosqueId } = req.params;
+        const { type, limit = 5, startDate, endDate } = req.query;
+
+        if (!['income', 'expense'].includes(type)) {
+            return res.status(400).json({ message: "Tipe kategori tidak valid (income / expense)." });
+        }
+
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosqueId },
+            attributes: ['wallet_id']
+        });
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        const result = await WalletTransactions.findAll({
+            where: {
+                wallet_id: { [Op.in]: walletIds },
+                transaction_type: type,
+                transaction_date: {
+                    [Op.between]: [new Date(startDate), new Date(endDate)]
+                },
+                deleted_at: null
+            },
+            include: [
+                { model: TransactionCategory, as: 'category', attributes: ['category_id', 'category_name'] }
+            ],
+            attributes: [
+                'category_id',
+                [db.Sequelize.fn('SUM', db.Sequelize.col('amount')), 'total_amount']
+            ],
+            group: ['category.category_id', 'category.category_name', 'wallet_transaction.category_id'],
+            order: [[db.Sequelize.literal('total_amount'), 'DESC']],
+            limit: parseInt(limit)
+        });
+
+        const formatted = result.map(r => ({
+            category_id: r.category_id,
+            category_name: r.category?.category_name,
+            total_amount: parseFloat(r.get('total_amount'))
+        }));
+
+        res.json(formatted);
+    } catch (error) {
+        console.error("Error fetching top categories:", error);
+        res.status(500).json({ message: "Gagal mengambil kategori tertinggi" });
+    }
+};
+
+exports.getLineStats = async (req, res) => {
+    try {
+        const { mosque_id } = req.query;
+        const { range = '7d' } = req.query; // '7d', '1m', '1y'
+
+        let dateFormat, startDate;
+
+        switch (range) {
+            case '1y':
+                dateFormat = 'YYYY-MM';
+                startDate = moment().subtract(1, 'year').startOf('month');
+                break;
+            case '1m':
+                dateFormat = 'YYYY-MM-DD';
+                startDate = moment().subtract(1, 'month').startOf('day');
+                break;
+            case '7d':
+            default:
+                dateFormat = 'YYYY-MM-DD';
+                startDate = moment().subtract(6, 'days').startOf('day');
+                break;
+        }
+
+        const transactions = await WalletTransaction.findAll({
+            where: {
+                mosque_id,
+                deleted_at: null,
+                created_at: { [Op.gte]: startDate.toDate() }
+            },
+            attributes: ['amount', 'transaction_type', 'created_at'],
+            raw: true
+        });
+
+        const grouped = {};
+
+        transactions.forEach((t) => {
+            const dateKey = moment(t.created_at).format(dateFormat);
+
+            if (!grouped[dateKey]) {
+                grouped[dateKey] = { income: 0, expense: 0 };
+            }
+
+            if (t.transaction_type === 'income') {
+                grouped[dateKey].income += parseFloat(t.amount);
+            } else if (t.transaction_type === 'expense') {
+                grouped[dateKey].expense += parseFloat(t.amount);
+            }
+        });
+
+        const dates = [];
+        const incomes = [];
+        const expenses = [];
+
+        const days = [];
+
+        const current = startDate.clone();
+        const now = moment();
+
+        while (current.isSameOrBefore(now, range === '1y' ? 'month' : 'day')) {
+            const key = current.format(dateFormat);
+            dates.push(key);
+            incomes.push(grouped[key]?.income || 0);
+            expenses.push(grouped[key]?.expense || 0);
+
+            range === '1y' ? current.add(1, 'month') : current.add(1, 'day');
+        }
+
+        return res.json({
+            labels: dates,
+            datasets: {
+                income: incomes,
+                expense: expenses
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Failed to get line chart data' });
     }
 };
 
