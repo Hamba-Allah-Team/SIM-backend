@@ -19,6 +19,8 @@ module.exports = {
         email: "alhikmah1@example.com",
         facebook: "https://www.facebook.com/masjidalhikmah1",
         instagram: "https://www.instagram.com/masjidalhikmah1",
+        longitude: "112.61605542075517",
+        latitude: "-7.946694622596628",
         created_at: new Date(),
         updated_at: new Date(),
       },
