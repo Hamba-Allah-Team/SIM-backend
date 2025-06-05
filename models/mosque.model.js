@@ -38,11 +38,11 @@ module.exports = (sequelize, Sequelize) => {
       allowNull: true
     },
     latitude: {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true
     },
     longitude: {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true
     },
     created_at: {
