@@ -7,7 +7,13 @@ module.exports = {
       {
         name: "Masjid Al-Hikmah 1",
         address: "Jl. Merpati No. 10",
-        description: "Masjid besar di pusat kota.",
+        description: `Masjid Al-Hikmah 1 merupakan salah satu masjid besar yang terletak strategis di pusat kota, tepatnya di Jl. Merpati No. 10. Dikenal sebagai pusat kegiatan keagamaan dan sosial, masjid ini tidak hanya menjadi tempat ibadah bagi masyarakat sekitar, tetapi juga menjadi pusat pembinaan spiritual, pendidikan Islam, dan kegiatan kemasyarakatan. 
+
+        Dengan arsitektur yang megah dan nuansa yang menyejukkan, Masjid Al-Hikmah 1 menawarkan kenyamanan bagi para jamaah untuk melaksanakan ibadah harian, kajian rutin, dan kegiatan keagamaan lainnya. Fasilitas yang tersedia di masjid ini pun cukup lengkap, mulai dari ruang salat yang luas, area wudu yang bersih, ruang serbaguna untuk kajian dan pertemuan, serta area parkir yang memadai.
+
+        Masjid ini juga aktif dalam menyelenggarakan berbagai program sosial seperti santunan anak yatim, buka puasa bersama di bulan Ramadan, serta pengajian rutin untuk berbagai kalangan usia. Melalui media sosial seperti Facebook dan Instagram, Masjid Al-Hikmah 1 terus berupaya menjangkau masyarakat luas dengan informasi dan dakwah digital yang bermanfaat.
+        
+        Dengan komitmen untuk menjadi pusat dakwah yang inklusif dan ramah, Masjid Al-Hikmah 1 terus tumbuh dan berkembang sebagai simbol persatuan dan kebaikan di tengah masyarakat perkotaan yang dinamis.`,
         image: "alhikmah1.jpg",
         phone_whatsapp: "081234567890",
         email: "alhikmah1@example.com",
