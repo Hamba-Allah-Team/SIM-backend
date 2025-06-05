@@ -14,7 +14,7 @@ module.exports = {
         Masjid ini juga aktif dalam menyelenggarakan berbagai program sosial seperti santunan anak yatim, buka puasa bersama di bulan Ramadan, serta pengajian rutin untuk berbagai kalangan usia. Melalui media sosial seperti Facebook dan Instagram, Masjid Al-Hikmah 1 terus berupaya menjangkau masyarakat luas dengan informasi dan dakwah digital yang bermanfaat.
         
         Dengan komitmen untuk menjadi pusat dakwah yang inklusif dan ramah, Masjid Al-Hikmah 1 terus tumbuh dan berkembang sebagai simbol persatuan dan kebaikan di tengah masyarakat perkotaan yang dinamis.`,
-        image: "alhikmah1.jpg",
+        // image: "alhikmah1.jpg",
         phone_whatsapp: "081234567890",
         email: "alhikmah1@example.com",
         facebook: "https://www.facebook.com/masjidalhikmah1",
