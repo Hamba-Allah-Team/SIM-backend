@@ -157,7 +157,7 @@ exports.deleteContent = async (req, res) => {
 // GET all contents (search, sort, pagination)
 exports.getContents = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", sortBy = "published_date", order = "ASC" } = req.query;
+    const { search = "", sortBy = "published_date", order = "ASC" } = req.query;
 
     // Mendapatkan user_id dari request setelah verifikasi token
     const user_id = req.userId;
@@ -168,8 +168,8 @@ exports.getContents = async (req, res) => {
 
     const mosque_id = user.mosque_id; // Ambil mosque_id dari data user
 
-    // Mencari artikel berdasarkan mosque_id dan pencarian judul atau deskripsi
-    const contents = await Content.findAndCountAll({
+    // Ambil semua data artikel berdasarkan mosque_id dan pencarian
+    const contents = await Content.findAll({
       where: {
         mosque_id,
         [Op.or]: [
@@ -185,18 +185,12 @@ exports.getContents = async (req, res) => {
           },
         ],
       },
-      order: [
-        [sortBy, order], // Mengurutkan berdasarkan sortBy dan order yang diterima dari query
-      ],
-      limit: limit, // Membatasi jumlah item per halaman
-      offset: (page - 1) * limit, // Mengatur offset berdasarkan halaman
+      order: [[sortBy, order]], // Urutkan hasil
     });
 
     res.status(200).send({
-      data: contents.rows,
-      totalCount: contents.count,
-      totalPages: Math.ceil(contents.count / limit),
-      currentPage: page,
+      data: contents,
+      totalCount: contents.length,
     });
   } catch (err) {
     console.error("Error saat mengambil artikel:", err);
