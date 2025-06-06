@@ -237,7 +237,7 @@ exports.getContentById = async (req, res) => {
 exports.getPublicContents = async (req, res) => {
   try {
     const { mosque_id } = req.params;
-    const { page = 1, limit = 10, search = "", sortBy = "published_date", order = "ASC" } = req.query;
+    const { search = "", sortBy = "published_date", order = "ASC" } = req.query;
 
     const contents = await Content.findAndCountAll({
       where: {
@@ -256,21 +256,18 @@ exports.getPublicContents = async (req, res) => {
         ],
       },
       order: [[sortBy, order]],
-      limit: parseInt(limit),
-      offset: (page - 1) * limit,
     });
 
     res.status(200).send({
       data: contents.rows,
       totalCount: contents.count,
-      totalPages: Math.ceil(contents.count / limit),
-      currentPage: parseInt(page),
     });
   } catch (err) {
     console.error("Error mengambil artikel publik:", err);
     res.status(500).send({ message: "Gagal mengambil artikel publik." });
   }
 };
+
 
 // GET single content by ID (untuk guest)
 exports.getPublicContentById = async (req, res) => {
