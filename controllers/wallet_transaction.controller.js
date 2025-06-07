@@ -401,7 +401,7 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
 
         const wallets = await Wallets.findAll({
             where: { mosque_id: mosqueId },
-            attributes: ['wallet_id', 'wallet_name']
+            attributes: ['wallet_id', 'wallet_name', 'wallet_type'],
         });
 
         const walletIds = wallets.map(w => w.wallet_id);
@@ -427,6 +427,7 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
             return {
                 wallet_id: wallet.wallet_id,
                 wallet_name: wallet.wallet_name,
+                wallet_type: wallet.wallet_type,
                 balance: latestTx?.balance || 0
             };
         }));
@@ -458,6 +459,8 @@ exports.getRecentTransactions = async (req, res) => {
         const recentTxs = await WalletTransactions.findAll({
             where: {
                 wallet_id: { [Op.in]: walletIds },
+                // 👈 PERBAIKAN DI SINI: Filter hanya income dan expense
+                transaction_type: { [Op.in]: ['income', 'expense'] },
                 deleted_at: null
             },
             include: [
