@@ -29,4 +29,5 @@ module.exports = function (app) {
     // 📌 Guest Activity routes (tanpa autentikasi)
     app.get("/api/activities/guest/:mosque_id", activityController.getPublicActivities);
     app.get("/api/activities/guest/:mosque_id/:id", activityController.getPublicActivityById);
+    app.get("/api/public/activities/upcoming/:slug", activityController.getUpcomingActivities);
 };

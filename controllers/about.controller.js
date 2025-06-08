@@ -130,7 +130,7 @@ exports.updateAbout = async (req, res) => {
       });
     }
 
-    
+
     await mosque.update({
       name,
       address,
@@ -151,6 +151,72 @@ exports.updateAbout = async (req, res) => {
     res
       .status(500)
       .send({ message: "Terjadi kesalahan saat memperbarui profil masjid." });
+  }
+};
+
+exports.getPublicMosqueBySlug = async (req, res) => {
+  try {
+    // 1. Mengambil slug dari parameter URL
+    const { slug } = req.params;
+
+    // 2. Mencari masjid berdasarkan kolom 'slug' yang unik
+    const mosque = await Mosque.findOne({
+      where: { slug: slug },
+      // Hanya mengambil kolom yang aman untuk ditampilkan ke publik
+      attributes: [
+        "name", "address", "description", "image",
+        "phone_whatsapp", "email", "facebook", "instagram",
+        "longitude", "latitude"
+      ],
+    });
+
+    if (!mosque) {
+      return res.status(404).send({ message: "Data masjid tidak ditemukan." });
+    }
+
+    res.status(200).send({ data: mosque });
+  } catch (err) {
+    console.error("Error saat mengambil data masjid publik:", err);
+    res.status(500).send({ message: "Gagal mengambil data masjid." });
+  }
+};
+
+exports.getPrayerTimesByCoordinates = async (req, res) => {
+  // Ambil latitude dan longitude dari query parameter
+  const { lat, lon } = req.query;
+
+  if (!lat || !lon) {
+    return res.status(400).json({ message: "Latitude dan Longitude diperlukan." });
+  }
+
+  try {
+    // Panggil API Al-Adhan dengan metode Kemenag RI (method=8)
+    const response = await axios.get(`http://api.aladhan.com/v1/timings`, {
+      params: {
+        latitude: lat,
+        longitude: lon,
+        method: 8
+      }
+    });
+
+    const timings = response.data.data.timings;
+    const hijriDate = response.data.data.date.hijri;
+
+    // Format data agar mudah digunakan di frontend
+    const formattedData = {
+      subuh: timings.Fajr,
+      dzuhur: timings.Dhuhr,
+      ashar: timings.Asr,
+      maghrib: timings.Maghrib,
+      isya: timings.Isha,
+      tanggalHijriyah: `${hijriDate.day} ${hijriDate.month.en} ${hijriDate.year}`
+    };
+
+    res.status(200).json(formattedData);
+
+  } catch (error) {
+    console.error("Gagal mengambil data jadwal sholat dari API eksternal:", error);
+    res.status(500).json({ message: "Gagal memproses permintaan jadwal sholat." });
   }
 };
 

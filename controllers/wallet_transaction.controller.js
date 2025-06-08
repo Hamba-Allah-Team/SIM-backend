@@ -446,6 +446,48 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
     }
 };
 
+exports.getPublicFinancialSummary = async (req, res) => {
+    try {
+        // Mengambil masjid berdasarkan slug, bukan ID
+        const mosque = await db.mosques.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        // Mengambil semua ID dompet yang dimiliki masjid ini
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosque.mosque_id },
+            attributes: ['wallet_id']
+        });
+
+        if (wallets.length === 0) {
+            return res.json({ total_income: 0, total_expense: 0 });
+        }
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        // Menjalankan query yang sama untuk mendapatkan total pemasukan dan pengeluaran
+        const [result] = await db.sequelize.query(`
+            SELECT 
+            SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS total_income,
+            SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) AS total_expense
+            FROM wallet_transactions
+            WHERE wallet_id IN (:walletIds) AND deleted_at IS NULL
+        `, {
+            replacements: { walletIds },
+            type: db.Sequelize.QueryTypes.SELECT
+        });
+
+        res.json({
+            pemasukan: parseFloat(result.total_income || 0),
+            pengeluaran: parseFloat(result.total_expense || 0),
+        });
+
+    } catch (error) {
+        console.error("Error generating public financial summary:", error);
+        res.status(500).json({ message: "Gagal mengambil ringkasan keuangan" });
+    }
+};
+
 exports.getRecentTransactions = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
