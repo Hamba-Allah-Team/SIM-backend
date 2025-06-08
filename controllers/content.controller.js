@@ -25,12 +25,12 @@ exports.createContent = async (req, res) => {
     }
 
     let imageFilename = null;
-      if (req.file) {
-        if (!isValidImage(req.file)) {
-          return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
-        }
-        imageFilename = req.file.filename;
+    if (req.file) {
+      if (!isValidImage(req.file)) {
+        return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
       }
+      imageFilename = req.file.filename;
+    }
 
     const content = await Content.create({
       title,
@@ -292,5 +292,47 @@ exports.getPublicContentById = async (req, res) => {
   } catch (err) {
     console.error("Error mengambil artikel publik:", err);
     res.status(500).send({ message: "Gagal mengambil artikel publik." });
+  }
+};
+
+exports.getPublicRecentNews = async (req, res) => {
+  try {
+    // Cari masjid berdasarkan slug untuk mendapatkan ID-nya
+    const mosque = await db.mosques.findOne({ where: { slug: req.params.slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    const recentNews = await Content.findAll({
+      where: {
+        mosque_id: mosque.mosque_id,
+        // Filter hanya untuk 'berita'
+        contents_type: 'berita',
+      },
+      order: [['published_date', 'DESC']], // Urutkan dari yang terbaru
+      limit: 4 // Ambil 4 berita terbaru
+    });
+
+    // Format data agar mudah digunakan di frontend
+    const formattedNews = recentNews.map(news => {
+      // Membuat excerpt (ringkasan) dari deskripsi
+      const excerpt = news.content_description
+        ? news.content_description.split(' ').slice(0, 20).join(' ') + '...'
+        : 'Klik untuk membaca selengkapnya.';
+
+      return {
+        id: news.contents_id,
+        img: news.image ? `${req.protocol}://${req.get('host')}/uploads/${news.image}` : 'https://placehold.co/600x400/EBF1F4/888?text=Berita',
+        title: news.title,
+        date: new Date(news.published_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        excerpt: excerpt
+      };
+    });
+
+    res.json(formattedNews);
+
+  } catch (error) {
+    console.error("Error fetching recent news:", error);
+    res.status(500).json({ message: "Gagal mengambil berita terbaru" });
   }
 };
