@@ -1,4 +1,5 @@
 const db = require("../models");
+const moment = require('moment');
 const PDFDocument = require('pdfkit');
 const PdfPrinter = require("pdfmake");
 const path = require("path");
@@ -400,7 +401,7 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
 
         const wallets = await Wallets.findAll({
             where: { mosque_id: mosqueId },
-            attributes: ['wallet_id', 'wallet_name']
+            attributes: ['wallet_id', 'wallet_name', 'wallet_type'],
         });
 
         const walletIds = wallets.map(w => w.wallet_id);
@@ -426,6 +427,7 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
             return {
                 wallet_id: wallet.wallet_id,
                 wallet_name: wallet.wallet_name,
+                wallet_type: wallet.wallet_type,
                 balance: latestTx?.balance || 0
             };
         }));
@@ -444,6 +446,48 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
     }
 };
 
+exports.getPublicFinancialSummary = async (req, res) => {
+    try {
+        // Mengambil masjid berdasarkan slug, bukan ID
+        const mosque = await db.mosques.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        // Mengambil semua ID dompet yang dimiliki masjid ini
+        const wallets = await Wallets.findAll({
+            where: { mosque_id: mosque.mosque_id },
+            attributes: ['wallet_id']
+        });
+
+        if (wallets.length === 0) {
+            return res.json({ total_income: 0, total_expense: 0 });
+        }
+        const walletIds = wallets.map(w => w.wallet_id);
+
+        // Menjalankan query yang sama untuk mendapatkan total pemasukan dan pengeluaran
+        const [result] = await db.sequelize.query(`
+            SELECT 
+            SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS total_income,
+            SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) AS total_expense
+            FROM wallet_transactions
+            WHERE wallet_id IN (:walletIds) AND deleted_at IS NULL
+        `, {
+            replacements: { walletIds },
+            type: db.Sequelize.QueryTypes.SELECT
+        });
+
+        res.json({
+            pemasukan: parseFloat(result.total_income || 0),
+            pengeluaran: parseFloat(result.total_expense || 0),
+        });
+
+    } catch (error) {
+        console.error("Error generating public financial summary:", error);
+        res.status(500).json({ message: "Gagal mengambil ringkasan keuangan" });
+    }
+};
+
 exports.getRecentTransactions = async (req, res) => {
     try {
         const mosqueId = req.params.mosqueId;
@@ -457,6 +501,8 @@ exports.getRecentTransactions = async (req, res) => {
         const recentTxs = await WalletTransactions.findAll({
             where: {
                 wallet_id: { [Op.in]: walletIds },
+                // 👈 PERBAIKAN DI SINI: Filter hanya income dan expense
+                transaction_type: { [Op.in]: ['income', 'expense'] },
                 deleted_at: null
             },
             include: [
@@ -556,15 +602,23 @@ exports.getLineStats = async (req, res) => {
                 break;
         }
 
-        const transactions = await WalletTransaction.findAll({
+        const transactions = await WalletTransactions.findAll({
+            include: [
+                {
+                    model: db.user,
+                    as: 'user',
+                    where: { mosque_id },
+                    attributes: []
+                }
+            ],
             where: {
-                mosque_id,
                 deleted_at: null,
                 created_at: { [Op.gte]: startDate.toDate() }
             },
             attributes: ['amount', 'transaction_type', 'created_at'],
             raw: true
         });
+
 
         const grouped = {};
 
