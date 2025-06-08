@@ -271,37 +271,36 @@ exports.getPublicActivityById = async (req, res) => {
 
 exports.getUpcomingActivities = async (req, res) => {
     try {
-        // Cari masjid berdasarkan slug untuk mendapatkan ID-nya
         const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
         if (!mosque) {
             return res.status(404).json({ message: "Masjid tidak ditemukan." });
         }
 
-        // Atur tanggal hari ini ke awal hari (pukul 00:00:00)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const upcomingActivities = await Activity.findAll({
             where: {
                 mosque_id: mosque.mosque_id,
-                // Filter: tanggal mulai harus lebih besar atau sama dengan hari ini
-                start_date: {
-                    [Op.gte]: today
-                },
+                start_date: { [Op.gte]: today },
             },
-            order: [['start_date', 'ASC']], // Urutkan dari yang paling dekat
-            limit: 3 // Ambil maksimal 3 kegiatan terdekat
+            order: [['start_date', 'ASC']],
+            limit: 3
         });
 
-        // Format data agar sesuai dengan desain frontend
+        // Format data agar sesuai dengan desain frontend, sekarang termasuk semua detail
         const formattedActivities = upcomingActivities.map(activity => {
             const activityDate = new Date(activity.start_date);
             return {
                 id: activity.activities_id,
                 day: format(activityDate, 'dd'),
                 month: format(activityDate, 'MMM', { locale: id }),
+                full_date: format(activityDate, "eeee, d MMMM yyyy", { locale: id }), // 👈 Tanggal lengkap
                 title: activity.event_name,
-                location: mosque.name // Menggunakan nama masjid sebagai lokasi
+                location: mosque.name,
+                image: activity.image ? `${req.protocol}://${req.get('host')}${activity.image}` : null, // 👈 URL gambar lengkap
+                description: activity.event_description, // 👈 Deskripsi
+                time: activity.start_time ? activity.start_time.substring(0, 5) : "N/A" // 👈 Waktu
             };
         });
 
