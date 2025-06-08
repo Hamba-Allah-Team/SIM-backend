@@ -3,32 +3,21 @@ const Activity = db.activity;
 const User = db.user; // Pastikan model User ada di db.user
 const fs = require('fs'); // Modul File System untuk menghapus file
 const path = require('path'); // Untuk bekerja dengan path file
+const Mosque = db.mosques;
+const { format } = require('date-fns'); // 👈 Impor date-fns
+const { id } = require('date-fns/locale'); // 👈 Impor locale Indonesia
+const { Op } = require("sequelize");
 
 // Fungsi helper untuk menghapus file gambar
 const deleteImageFile = (filePath) => {
     if (filePath) {
-        // filePath dari database mungkin /uploads/namafile.jpg
-        // Ubah menjadi path absolut di server jika perlu
         const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
-        // __dirname akan mengarah ke folder controllers
-        // jadi kita naik dua level untuk ke root project
-        // jika uploads ada di root. Atau pastikan filePath sudah benar.
-        // Lebih aman jika filePath yang disimpan adalah relatif dari root uploads,
-        // dan folder uploads ada di root proyek.
-        // Misal: filePath = 'uploads/gambar.jpg' (relatif dari root project)
-        // Maka fullPath = path.resolve(filePath)
-        // Untuk skenario dimana filePath adalah '/uploads/namafile.jpg' dan 'uploads' ada di root project
-        const projectRoot = path.resolve(__dirname, '../../'); // asumsi controller ada di src/controllers
         const fileSystemPath = path.join(projectRoot, filePath.startsWith('/') ? filePath.substring(1) : filePath);
 
 
         fs.unlink(fileSystemPath, (err) => {
             if (err) {
                 console.error("Gagal menghapus file gambar lama:", err.message);
-                // Tidak perlu menghentikan proses jika file tidak ditemukan (mungkin sudah dihapus atau path salah)
-                // if (err.code !== 'ENOENT') {
-                //   console.error("Error saat menghapus file:", err);
-                // }
             } else {
                 console.log("File gambar lama berhasil dihapus:", fileSystemPath);
             }
@@ -277,5 +266,49 @@ exports.getPublicActivityById = async (req, res) => {
     } catch (error) {
         console.error("Error fetching public activity by ID:", error);
         res.status(500).json({ message: "Failed to retrieve activity detail" });
+    }
+};
+
+exports.getUpcomingActivities = async (req, res) => {
+    try {
+        // Cari masjid berdasarkan slug untuk mendapatkan ID-nya
+        const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        // Atur tanggal hari ini ke awal hari (pukul 00:00:00)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcomingActivities = await Activity.findAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                // Filter: tanggal mulai harus lebih besar atau sama dengan hari ini
+                start_date: {
+                    [Op.gte]: today
+                },
+            },
+            order: [['start_date', 'ASC']], // Urutkan dari yang paling dekat
+            limit: 3 // Ambil maksimal 3 kegiatan terdekat
+        });
+
+        // Format data agar sesuai dengan desain frontend
+        const formattedActivities = upcomingActivities.map(activity => {
+            const activityDate = new Date(activity.start_date);
+            return {
+                id: activity.activities_id,
+                day: format(activityDate, 'dd'),
+                month: format(activityDate, 'MMM', { locale: id }),
+                title: activity.event_name,
+                location: mosque.name // Menggunakan nama masjid sebagai lokasi
+            };
+        });
+
+        res.json(formattedActivities);
+
+    } catch (error) {
+        console.error("Error fetching upcoming activities:", error);
+        res.status(500).json({ message: "Gagal mengambil kegiatan mendatang" });
     }
 };

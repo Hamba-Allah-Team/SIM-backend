@@ -52,4 +52,5 @@ module.exports = function (app) {
     app.get("/api/dashboard/periodic", verifyToken, walletTransactionController.getPeriodicReport);
     app.get("/api/dashboard/top-categories/:mosqueId", verifyToken, walletTransactionController.getTopCategories);
     app.get("/api/dashboard/line-stats", verifyToken, walletTransactionController.getLineStats);
+    app.get("/api/public/financial-summary/:slug", walletTransactionController.getPublicFinancialSummary);
 };
