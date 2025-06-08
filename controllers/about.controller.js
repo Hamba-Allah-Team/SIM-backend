@@ -118,32 +118,33 @@ exports.updateAbout = async (req, res) => {
       imageFilename = req.file.filename;
     }
 
-    // Validasi longitude dan latitude (optional, harus angka jika diisi)
-    if (longitude !== undefined && longitude !== null && longitude.trim() !== "" && isNaN(parseFloat(longitude))) {
+    // Validasi longitude dan latitude (optional, cek format string valid koordinat jika ingin)
+    const coordRegex = /^-?\d+(\.\d+)?$/; // regex sederhana untuk angka desimal, termasuk negatif
+
+    if (longitude !== undefined && longitude !== null && longitude !== "" && !coordRegex.test(longitude)) {
       return res.status(400).send({
-        message: "Longitude harus berupa angka.",
+        message: "Longitude harus berupa string angka desimal yang valid.",
       });
     }
 
-    if (latitude !== undefined && latitude !== null && latitude.trim() !== "" && isNaN(parseFloat(latitude))) {
+    if (latitude !== undefined && latitude !== null && latitude !== "" && !coordRegex.test(latitude)) {
       return res.status(400).send({
-        message: "Latitude harus berupa angka.",
+        message: "Latitude harus berupa string angka desimal yang valid.",
       });
     }
-
 
     await mosque.update({
-      name,
-      address,
-      description: description ?? "",      // jika undefined jadi string kosong
-      image: imageFilename,
-      phone_whatsapp: phone_whatsapp ?? "",
-      email: email ?? "",
-      facebook: facebook ?? "",
-      instagram: instagram ?? "",
-      longitude: longitude && longitude.trim() !== "" ? parseFloat(longitude) : null,
-      latitude: latitude && latitude.trim() !== "" ? parseFloat(latitude) : null,
-    });
+    name,
+    address,
+    description: description ?? "",
+    image: imageFilename,
+    phone_whatsapp: phone_whatsapp ?? "",
+    email: email ?? "",
+    facebook: facebook ?? "",
+    instagram: instagram ?? "",
+    longitude: longitude ?? null, // langsung simpan string atau null
+    latitude: latitude ?? null,   // langsung simpan string atau null
+  });
 
 
     res.status(200).send({ message: "Profil masjid berhasil diperbarui." });
