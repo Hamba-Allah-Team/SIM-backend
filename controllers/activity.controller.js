@@ -311,3 +311,58 @@ exports.getUpcomingActivities = async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil kegiatan mendatang" });
     }
 };
+
+exports.getAllUpcomingActivities = async (req, res) => {
+    try {
+        const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        // 1. Ambil parameter 'page' dan 'limit' dari query URL
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
+        const offset = (page - 1) * limit;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 2. Gunakan findAndCountAll untuk mendapatkan data dan totalnya
+        const { count, rows } = await Activity.findAndCountAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                start_date: { [Op.gte]: today },
+            },
+            order: [['start_date', 'ASC']],
+            limit,
+            offset,
+        });
+
+        const formattedActivities = rows.map(activity => {
+            const activityDate = new Date(activity.start_date);
+            return {
+                id: activity.activities_id,
+                day: format(activityDate, 'dd'),
+                month: format(activityDate, 'MMM', { locale: id }),
+                full_date: format(activityDate, "eeee, d MMMM yyyy", { locale: id }),
+                title: activity.event_name,
+                location: mosque.name,
+                image: activity.image ? `${req.protocol}://${req.get('host')}${activity.image}` : null,
+                description: activity.event_description,
+                time: activity.start_time ? activity.start_time.substring(0, 5) : "N/A"
+            };
+        });
+
+        // 3. Kembalikan data bersama informasi paginasi
+        res.json({
+            data: formattedActivities,
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+        });
+
+    } catch (error) {
+        console.error("Error fetching all upcoming activities:", error);
+        res.status(500).json({ message: "Gagal mengambil data kegiatan" });
+    }
+};

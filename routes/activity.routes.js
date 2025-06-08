@@ -30,4 +30,5 @@ module.exports = function (app) {
     app.get("/api/activities/guest/:mosque_id", activityController.getPublicActivities);
     app.get("/api/activities/guest/:mosque_id/:id", activityController.getPublicActivityById);
     app.get("/api/public/activities/upcoming/:slug", activityController.getUpcomingActivities);
+    app.get("/api/public/activities/all/:slug", activityController.getAllUpcomingActivities);
 };
