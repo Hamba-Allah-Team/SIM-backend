@@ -336,3 +336,78 @@ exports.getPublicRecentNews = async (req, res) => {
     res.status(500).json({ message: "Gagal mengambil berita terbaru" });
   }
 };
+
+// GET all contents by mosque slug (untuk guest)
+exports.getPublicContents2 = async (req, res) => {
+  try {
+    // Ambil slug dari params
+    const { slug } = req.params;
+    const { search = "", sortBy = "published_date", order = "ASC" } = req.query;
+
+    // Cari masjid berdasarkan slug untuk mendapatkan mosque_id
+    const mosque = await db.mosques.findOne({ where: { slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    const contents = await Content.findAndCountAll({
+      where: {
+        mosque_id: mosque.mosque_id,
+        [Op.or]: [
+          {
+            title: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+          {
+            content_description: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+        ],
+      },
+      order: [[sortBy, order]],
+    });
+
+    res.status(200).send({
+      data: contents.rows,
+      totalCount: contents.count,
+    });
+  } catch (err) {
+    console.error("Error mengambil artikel publik:", err);
+    res.status(500).send({ message: "Gagal mengambil artikel publik." });
+  }
+};
+
+// GET single content by ID dan mosque slug (untuk guest)
+exports.getPublicContentById2 = async (req, res) => {
+  try {
+    const { slug, id } = req.params;
+
+    // Cari masjid berdasarkan slug untuk dapatkan mosque_id
+    const mosque = await db.mosques.findOne({ where: { slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    // Cari konten berdasarkan ID dan mosque_id
+    const article = await Content.findOne({
+      where: {
+        contents_id: id,
+        mosque_id: mosque.mosque_id,
+      },
+    });
+
+    if (!article) {
+      return res.status(404).send({ message: "Konten tidak ditemukan." });
+    }
+
+    res.status(200).send({
+      message: "Konten ditemukan.",
+      data: article,
+    });
+  } catch (err) {
+    console.error("Error mengambil konten publik:", err);
+    res.status(500).send({ message: "Gagal mengambil konten publik." });
+  }
+};
