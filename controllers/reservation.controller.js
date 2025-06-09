@@ -1,4 +1,3 @@
-const { up } = require("../migrations/20250506021842-create-reservations");
 const db = require("../models");
 const Reservation = db.reservation;
 const { Op } = require("sequelize");
@@ -19,14 +18,14 @@ exports.createReservation = async (req, res) => {
 
         const mosque_id = user.mosque_id;
 
-        const start = new Date('${reservation_date}T${start_time}');
-        const end = new Date('${reservation_date}T${end_time}');
-        
+        const start = new Date(`${reservation_date}T${start_time}`);
+        const end = new Date(`${reservation_date}T${end_time}`);
+
         if (phone_number && !/^\+?[0-9]+$/.test(phone_number)) {
             return res.status(400).json({ message: "Nomor telepon hanya boleh berisi angka dan opsional tanda plus di depan." });
         }
 
-        if (phone_number && !/^\d{10,15}$/.test(phone_number)) {
+        if (phone_number && !/^\+?\d{10,15}$/.test(phone_number)) {
             return res.status(400).json({ message: "Nomor telepon harus terdiri dari 10 hingga 15 digit." });
         }
 
@@ -35,6 +34,7 @@ exports.createReservation = async (req, res) => {
         }
 
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
         if(new Date(reservation_date) < today) {
             return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
         }
@@ -47,12 +47,12 @@ exports.createReservation = async (req, res) => {
                 [Op.or]: [
                     {
                         start_time: {
-                            [Op.between]: [start_time, end_time]
+                            [Op.lt] : end_time
                         }
                     },
                     {
                         end_time: {
-                            [Op.between]: [start_time, end_time]
+                            [Op.gt]: start_time
                         }
                     }
                 ]
@@ -73,7 +73,8 @@ exports.createReservation = async (req, res) => {
             reservation_date,
             start_time,
             end_time,
-            admin_id: user_id
+            admin_id: null,
+            status: 'pending',
         });
 
         res.status(201).send({
@@ -102,7 +103,7 @@ exports.getReservations = async (req, res) => {
 
         const mosque_id = user.mosque_id;
 
-        const listReservation = await Reservation.findAll({
+        const { count, rows } = await Reservation.findAndCountAll({
             where: { 
                 mosque_id,
                 [Op.or]: [
@@ -116,18 +117,30 @@ exports.getReservations = async (req, res) => {
                             [Op.like]: `%${search}%`
                         }
                     },
+                    {
+                        '$room.place_name$': {
+                            [Op.like]: `%${search}%`
+                        }
+                    },
                 ],
                 ...(filter !== 'all' ? { status: filter } : {})
+            },
+            include: {
+                model: db.reservation_room,
+                as: 'room',
+                attributes: ['place_name'],
             },
             order: [['created_at', sortOrder]],
             limit: parseInt(limit),
             offset: parseInt((page - 1) * limit)
         });
 
+        const listReservation = rows.map(reservation => reservation.get({ plain: true }));
+
         res.status(200).send({
-            data: listReservation.rows,
-            totalCount: listReservation.count,
-            totalPage: Math.ceil(listReservation.count / limit),
+            data: listReservation,
+            totalCount: count,
+            totalPage: Math.ceil(count / limit),
             currentPage: parseInt(page),
         });
     } catch (error) {
@@ -153,7 +166,17 @@ exports.getReservationById = async (req, res) => {
         const existingReservation = await Reservation.findOne({
             where: {
                 reservation_id: id,
-            }
+            },
+            include: [{
+                model: db.reservation_room,
+                as: 'room',
+                attributes: ['place_name'],
+            }, {
+                model: db.user,
+                as: 'admin',
+                attributes: ['name'],
+            }],
+            plain: true
         });
 
         if (!existingReservation) {
@@ -174,7 +197,7 @@ exports.getReservationById = async (req, res) => {
 exports.updateReservation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { room_id, name, phone_number, description, reservation_date, start_time, end_time } = req.body;
+        const { room_id, name, phone_number, description, reservation_date, start_time, end_time, status } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -203,21 +226,31 @@ exports.updateReservation = async (req, res) => {
             return res.status(400).json({ message: "Nomor telepon hanya boleh berisi angka dan opsional tanda plus di depan." });
         }
 
-        if (phone_number && !/^\d{10,15}$/.test(phone_number)) {
+        if (phone_number && !/^\+?\d{10,15}$/.test(phone_number)) {
             return res.status(400).json({ message: "Nomor telepon harus terdiri dari 10 hingga 15 digit." });
         }
 
-        if (start >= end) {
+        if (start_time >= end_time) {
             return res.status(400).json({ message: "Waktu mulai harus lebih awal dari waktu selesai." });
         }
 
+        const validStatuses = ['pending', 'approved', 'rejected', 'completed'];
+        if (status && !validStatuses.includes(status)) {
+            return res.status(400).json({ message: "Status tidak valid. Harap gunakan 'pending', 'approved', atau 'rejected'." });
+        }
+
+        let adminId = null;
+        if (status === 'approved' || status === 'rejected' || status === 'completed') {
+            adminId = user_id;
+        }
+
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
         if(new Date(reservation_date) < today) {
             return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
         }
 
-        // Update reservasi
-        await updateReservation.update({
+        await existingReservation.update({
             room_id,
             name,
             phone_number,
@@ -225,16 +258,13 @@ exports.updateReservation = async (req, res) => {
             reservation_date,
             start_time,
             end_time,
-            admin_id: user_id
-        }, {
-            where: {
-                reservation_id: id
-            }
+            admin_id: adminId,
+            status: status || existingReservation.status
         });
 
         res.status(200).send({
             message: "Reservasi berhasil diperbarui.",
-            data: updateReservation
+            data: existingReservation
         });
 
     } catch (error) {
@@ -242,6 +272,53 @@ exports.updateReservation = async (req, res) => {
         res.status(500).json({ message: "Terjadi kesalahan saat memperbarui reservasi" });
     }
 }
+
+exports.approveReservation = async (req, res) => {
+    try {
+        const { id, status } = req.params;
+        const user_id = req.userId;
+
+        if (status !== 'approved' && status !== 'rejected') {
+            return res.status(400).send({ message: "Aksi tidak valid. URL harus diakhiri dengan '/approved' atau '/rejected'." });
+        }
+
+        const user = await db.user.findByPk(user_id);
+        if (!user || user.role !== 'admin') {
+            return res.status(403).send({ message: "Akses ditolak. Hanya Admin yang bisa mengakses." });
+        }
+        
+        const mosque_id = user.mosque_id;
+
+        const existingReservation = await Reservation.findOne({
+            where: {
+                reservation_id: id,
+                mosque_id
+            }
+        });
+
+        if (!existingReservation) {
+            return res.status(404).send({ message: "Reservasi tidak ditemukan." });
+        }
+
+        if (existingReservation.status !== 'pending') {
+            return res.status(400).send({ message: `Reservasi sudah dalam status '${existingReservation.status}', tidak dapat diubah lagi.` });
+        }
+
+        await existingReservation.update({
+            status: status,
+            admin_id: user_id
+        });
+
+        res.status(200).send({
+            message: `Reservasi berhasil ${status === 'approved' ? 'disetujui' : 'ditolak'}.`,
+            data: existingReservation
+        });
+
+    } catch (error) {
+        console.error("Error updating reservation status:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat memperbarui status reservasi." });
+    }
+};
 
 exports.deleteReservation = async (req, res) => {
     try {

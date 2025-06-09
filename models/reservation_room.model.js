@@ -53,10 +53,10 @@ module.exports = (sequelize, Sequelize) => {
             foreignKey: 'mosque_id',
             as: 'mosque'
         });
-        // ReservationRoom.hasMany(models.Reservation, {
-        //     foreignKey: 'room_id',
-        //     as: 'reservations'
-        // });
+        ReservationRoom.hasMany(models.reservation, {
+            foreignKey: 'room_id',
+            as: 'reservations',
+        });
     };
 
     return ReservationRoom;
