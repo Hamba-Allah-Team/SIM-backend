@@ -144,21 +144,21 @@ exports.updateUser = async (req, res) => {
 exports.profile = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
-      attributes: [
-        ['user_id', 'id'],
-        "username",
-        "name",
-        "email",
-        "role",
-        "status"
-      ],
+      attributes: {
+        include: [
+          ['user_id', 'id'] 
+        ],
+        exclude: [
+          'password',
+          'user_id'  
+        ]
+      },
       include: [{
         model: db.mosques,
         as: "mosque",
         attributes: { exclude: ["createdAt", "updatedAt"] },
       }],
     });
-
     if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
