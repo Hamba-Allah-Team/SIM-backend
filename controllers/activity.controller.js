@@ -282,7 +282,7 @@ exports.getUpcomingActivities = async (req, res) => {
         const upcomingActivities = await Activity.findAll({
             where: {
                 mosque_id: mosque.mosque_id,
-                start_date: { [Op.gte]: today },
+                end_date: { [Op.gte]: today },
             },
             order: [['start_date', 'ASC']],
             limit: 3
@@ -331,7 +331,7 @@ exports.getAllUpcomingActivities = async (req, res) => {
         const { count, rows } = await Activity.findAndCountAll({
             where: {
                 mosque_id: mosque.mosque_id,
-                start_date: { [Op.gte]: today },
+                end_date: { [Op.gte]: today },
             },
             order: [['start_date', 'ASC']],
             limit,
