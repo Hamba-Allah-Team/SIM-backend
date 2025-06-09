@@ -1,18 +1,44 @@
 const db = require("../models");
 const Activity = db.activity;
-const User = db.user;
+const User = db.user; // Pastikan model User ada di db.user
+const fs = require('fs'); // Modul File System untuk menghapus file
+const path = require('path'); // Untuk bekerja dengan path file
+const Mosque = db.mosques;
+const { format } = require('date-fns'); // 👈 Impor date-fns
+const { id } = require('date-fns/locale'); // 👈 Impor locale Indonesia
+const { Op } = require("sequelize");
 
-// 📥 CREATE activity (gunakan user login)
+// Fungsi helper untuk menghapus file gambar
+const deleteImageFile = (filePath) => {
+    if (filePath) {
+        const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
+        const fileSystemPath = path.join(projectRoot, filePath.startsWith('/') ? filePath.substring(1) : filePath);
+
+
+        fs.unlink(fileSystemPath, (err) => {
+            if (err) {
+                console.error("Gagal menghapus file gambar lama:", err.message);
+            } else {
+                console.log("File gambar lama berhasil dihapus:", fileSystemPath);
+            }
+        });
+    }
+};
+
+
+// 📥 CREATE activity
 exports.createActivity = async (req, res) => {
     try {
         const userId = req.userId;
-
         const user = await User.findByPk(userId);
-        if (!user) return res.status(404).json({ message: "User not found" });
+        if (!user) {
+            // Jika ada file terupload karena user tidak ditemukan, hapus file tersebut
+            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            return res.status(404).json({ message: "User not found" });
+        }
 
         const {
             event_name,
-            image,
             event_description,
             start_date,
             end_date,
@@ -20,11 +46,21 @@ exports.createActivity = async (req, res) => {
             end_time
         } = req.body;
 
+        let imageUrl = null;
+        if (req.file) {
+            // Simpan path yang bisa diakses publik, contoh: /uploads/namafile.jpg
+            imageUrl = `/uploads/${req.file.filename}`;
+        } else {
+            // Jika gambar tidak wajib, Anda bisa membiarkannya null
+            // Jika wajib, berikan error:
+            // return res.status(400).json({ message: "Gambar kegiatan wajib diunggah." });
+        }
+
         const newActivity = await Activity.create({
-            mosque_id: user.mosque_id,
+            mosque_id: user.mosque_id, // Pastikan user memiliki mosque_id
             user_id: userId,
             event_name,
-            image,
+            image: imageUrl,
             event_description,
             start_date,
             end_date,
@@ -35,17 +71,25 @@ exports.createActivity = async (req, res) => {
         res.status(201).json(newActivity);
     } catch (error) {
         console.error("Error creating activity:", error);
+        // Jika ada file terupload karena error lain, hapus file tersebut
+        if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+
+        // Tangani error dari multer (misal, tipe file tidak valid)
+        if (error.message && error.message.includes("Hanya file JPEG, JPG, PNG yang diizinkan!")) {
+            return res.status(400).json({ message: error.message });
+        }
         res.status(500).json({ message: "Failed to create activity" });
     }
 };
 
+// 📄 GET all activities for the logged-in user's mosque
 exports.getActivities = async (req, res) => {
     try {
-        const user = await db.user.findByPk(req.userId);
+        const user = await User.findByPk(req.userId);
         if (!user) return res.status(404).json({ message: "User not found" });
 
         const activities = await Activity.findAll({
-            where: { mosque_id: user.mosque_id },
+            where: { mosque_id: user.mosque_id }, // Pastikan user.mosque_id ada
             order: [['start_date', 'DESC']]
         });
 
@@ -56,24 +100,22 @@ exports.getActivities = async (req, res) => {
     }
 };
 
-
-// 📄 GET activity by ID
+// 📄 GET activity by ID for the logged-in user's mosque
 exports.getActivityById = async (req, res) => {
     try {
-        const user = await db.user.findByPk(req.userId);
+        const user = await User.findByPk(req.userId);
         if (!user) return res.status(404).json({ message: "User not found" });
 
         const activity = await Activity.findOne({
             where: {
                 activities_id: req.params.id,
-                mosque_id: user.mosque_id
+                mosque_id: user.mosque_id // Pastikan user.mosque_id ada
             }
         });
 
         if (!activity) {
             return res.status(404).json({ message: "Activity not found" });
         }
-
         res.json(activity);
     } catch (error) {
         console.error("Error fetching activity:", error);
@@ -81,43 +123,85 @@ exports.getActivityById = async (req, res) => {
     }
 };
 
-
 // ✏️ UPDATE activity
 exports.updateActivity = async (req, res) => {
     try {
-        const user = await db.user.findByPk(req.userId);
-        if (!user) return res.status(404).json({ message: "User not found" });
+        const userId = req.userId;
+        const user = await User.findByPk(userId);
+        if (!user) {
+            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            return res.status(404).json({ message: "User not found" });
+        }
 
         const activity = await Activity.findOne({
             where: {
                 activities_id: req.params.id,
-                mosque_id: user.mosque_id
+                mosque_id: user.mosque_id // Pastikan user.mosque_id ada
             }
         });
 
         if (!activity) {
+            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
             return res.status(404).json({ message: "Activity not found" });
         }
 
-        await activity.update(req.body);
+        const oldImagePath = activity.image; // Simpan path gambar lama
+        let newImagePath = oldImagePath;
+
+        if (req.file) {
+            newImagePath = `/uploads/${req.file.filename}`;
+        }
+
+        // Dapatkan data lain dari body
+        const {
+            event_name,
+            event_description,
+            start_date,
+            end_date,
+            start_time,
+            end_time
+        } = req.body;
+
+
+        await activity.update({
+            event_name: event_name || activity.event_name,
+            image: newImagePath, // Gunakan path baru atau path lama jika tidak ada file baru
+            event_description: event_description || activity.event_description,
+            start_date: start_date || activity.start_date,
+            end_date: end_date || activity.end_date,
+            start_time: start_time || activity.start_time,
+            end_time: end_time || activity.end_time,
+            // user_id tidak diupdate di sini, karena user yg mengupdate mungkin admin, bukan pembuat asli
+            // mosque_id juga tidak diupdate
+        });
+
+        // Jika ada file baru diupload DAN path gambar lama ada (bukan null/kosong) DAN path baru beda dari path lama
+        if (req.file && oldImagePath && oldImagePath !== newImagePath) {
+            deleteImageFile(oldImagePath);
+        }
+
         res.json({ message: "Activity updated successfully", activity });
     } catch (error) {
         console.error("Error updating activity:", error);
+        if (req.file) deleteImageFile(path.join('uploads', req.file.filename)); // Hapus file baru jika ada error saat update DB
+
+        if (error.message && error.message.includes("Hanya file JPEG, JPG, PNG yang diizinkan!")) {
+            return res.status(400).json({ message: error.message });
+        }
         res.status(500).json({ message: "Failed to update activity" });
     }
 };
 
-
 // 🗑️ DELETE activity
 exports.deleteActivity = async (req, res) => {
     try {
-        const user = await db.user.findByPk(req.userId);
+        const user = await User.findByPk(req.userId);
         if (!user) return res.status(404).json({ message: "User not found" });
 
         const activity = await Activity.findOne({
             where: {
                 activities_id: req.params.id,
-                mosque_id: user.mosque_id
+                mosque_id: user.mosque_id // Pastikan user.mosque_id ada
             }
         });
 
@@ -125,7 +209,14 @@ exports.deleteActivity = async (req, res) => {
             return res.status(404).json({ message: "Activity not found" });
         }
 
+        const imagePathToDelete = activity.image;
         await activity.destroy();
+
+        // Hapus file gambar terkait jika ada
+        if (imagePathToDelete) {
+            deleteImageFile(imagePathToDelete);
+        }
+
         res.json({ message: "Activity deleted successfully" });
     } catch (error) {
         console.error("Error deleting activity:", error);
@@ -133,19 +224,19 @@ exports.deleteActivity = async (req, res) => {
     }
 };
 
-
+// --- Public Controllers (umumnya tidak berubah banyak, hanya memastikan path gambar benar) ---
 exports.getPublicActivities = async (req, res) => {
     try {
         const mosqueId = req.params.mosque_id;
+        if (!mosqueId) return res.status(400).json({ message: "Mosque ID is required." });
 
         const activities = await Activity.findAll({
             where: { mosque_id: mosqueId },
             attributes: {
-                exclude: ['created_at', 'updated_at'] // atau sesuaikan jika ingin tampilkan semua
+                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
             },
-            order: [['start_date', 'ASC']]
+            order: [['start_date', 'ASC']] // Atau DESC, sesuai kebutuhan
         });
-
         res.json(activities);
     } catch (error) {
         console.error("Error fetching public activities:", error);
@@ -156,6 +247,7 @@ exports.getPublicActivities = async (req, res) => {
 exports.getPublicActivityById = async (req, res) => {
     try {
         const { mosque_id, id } = req.params;
+        if (!mosque_id || !id) return res.status(400).json({ message: "Mosque ID and Activity ID are required." });
 
         const activity = await Activity.findOne({
             where: {
@@ -163,17 +255,114 @@ exports.getPublicActivityById = async (req, res) => {
                 activities_id: id
             },
             attributes: {
-                exclude: ['created_at', 'updated_at']
+                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
             }
         });
 
         if (!activity) {
             return res.status(404).json({ message: "Activity not found" });
         }
-
         res.json(activity);
     } catch (error) {
         console.error("Error fetching public activity by ID:", error);
         res.status(500).json({ message: "Failed to retrieve activity detail" });
+    }
+};
+
+exports.getUpcomingActivities = async (req, res) => {
+    try {
+        const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcomingActivities = await Activity.findAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                start_date: { [Op.gte]: today },
+            },
+            order: [['start_date', 'ASC']],
+            limit: 3
+        });
+
+        // Format data agar sesuai dengan desain frontend, sekarang termasuk semua detail
+        const formattedActivities = upcomingActivities.map(activity => {
+            const activityDate = new Date(activity.start_date);
+            return {
+                id: activity.activities_id,
+                day: format(activityDate, 'dd'),
+                month: format(activityDate, 'MMM', { locale: id }),
+                full_date: format(activityDate, "eeee, d MMMM yyyy", { locale: id }), // 👈 Tanggal lengkap
+                title: activity.event_name,
+                location: mosque.name,
+                image: activity.image ? `${req.protocol}://${req.get('host')}${activity.image}` : null, // 👈 URL gambar lengkap
+                description: activity.event_description, // 👈 Deskripsi
+                time: activity.start_time ? activity.start_time.substring(0, 5) : "N/A" // 👈 Waktu
+            };
+        });
+
+        res.json(formattedActivities);
+
+    } catch (error) {
+        console.error("Error fetching upcoming activities:", error);
+        res.status(500).json({ message: "Gagal mengambil kegiatan mendatang" });
+    }
+};
+
+exports.getAllUpcomingActivities = async (req, res) => {
+    try {
+        const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        // 1. Ambil parameter 'page' dan 'limit' dari query URL
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
+        const offset = (page - 1) * limit;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 2. Gunakan findAndCountAll untuk mendapatkan data dan totalnya
+        const { count, rows } = await Activity.findAndCountAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                start_date: { [Op.gte]: today },
+            },
+            order: [['start_date', 'ASC']],
+            limit,
+            offset,
+        });
+
+        const formattedActivities = rows.map(activity => {
+            const activityDate = new Date(activity.start_date);
+            return {
+                id: activity.activities_id,
+                day: format(activityDate, 'dd'),
+                month: format(activityDate, 'MMM', { locale: id }),
+                full_date: format(activityDate, "eeee, d MMMM yyyy", { locale: id }),
+                title: activity.event_name,
+                location: mosque.name,
+                image: activity.image ? `${req.protocol}://${req.get('host')}${activity.image}` : null,
+                description: activity.event_description,
+                time: activity.start_time ? activity.start_time.substring(0, 5) : "N/A"
+            };
+        });
+
+        // 3. Kembalikan data bersama informasi paginasi
+        res.json({
+            data: formattedActivities,
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+        });
+
+    } catch (error) {
+        console.error("Error fetching all upcoming activities:", error);
+        res.status(500).json({ message: "Gagal mengambil data kegiatan" });
     }
 };

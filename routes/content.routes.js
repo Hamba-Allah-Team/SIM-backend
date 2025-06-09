@@ -36,4 +36,5 @@ module.exports = function (app) {
     "/api/guest/content/:mosque_id/:id",
     contentController.getPublicContentById
   );
+  app.get("/api/public/news/recent/:slug", contentController.getPublicRecentNews);
 };

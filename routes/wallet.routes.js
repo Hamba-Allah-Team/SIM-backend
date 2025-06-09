@@ -41,10 +41,16 @@ module.exports = function (app) {
     app.get("/api/wallets-balances", verifyToken, walletTransactionController.getAllWalletsWithBalance);
     app.get("/api/wallets/mosque/:mosqueId", verifyToken, walletTransactionController.getWalletsByMosqueWithBalance);
 
-    app.get("/api/finance/public-summary/:mosqueId", walletTransactionController.getPublicSummary);
-    app.get("/api/finance/report", verifyToken, walletTransactionController.getPeriodicReport);
+    // app.get("/api/finance/public-summary/:mosqueId", verifyToken, walletTransactionController.getPublicSummary);
     app.get("/api/finance/report/export", verifyToken, walletTransactionController.getPeriodicReportExport);
     app.get("/api/wallets/:mosqueId/balance-date", verifyToken, walletTransactionController.getWalletBalancesByDate);
     app.get("/api/finance/:mosqueId/report/category", verifyToken, walletTransactionController.getTransactionsByCategoryForMosque);
     app.get("/api/finance/filter", verifyToken, walletTransactionController.filterTransactions);
+
+    app.get("/api/dashboard/summary/:mosqueId", verifyToken, walletTransactionController.getFinancialSummaryForDashboard);
+    app.get("/api/dashboard/recent/:mosqueId", verifyToken, walletTransactionController.getRecentTransactions);
+    app.get("/api/dashboard/periodic", verifyToken, walletTransactionController.getPeriodicReport);
+    app.get("/api/dashboard/top-categories/:mosqueId", verifyToken, walletTransactionController.getTopCategories);
+    app.get("/api/dashboard/line-stats", verifyToken, walletTransactionController.getLineStats);
+    app.get("/api/public/financial-summary/:slug", walletTransactionController.getPublicFinancialSummary);
 };

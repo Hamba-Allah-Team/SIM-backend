@@ -1,4 +1,5 @@
 const db = require("../models");
+const axios = require('axios');
 const Mosque = db.mosques;
 
 // Validasi format gambar
@@ -117,32 +118,33 @@ exports.updateAbout = async (req, res) => {
       imageFilename = req.file.filename;
     }
 
-    // Validasi longitude dan latitude (optional, harus angka jika diisi)
-    if (longitude !== undefined && longitude !== null && longitude.trim() !== "" && isNaN(parseFloat(longitude))) {
+    // Validasi longitude dan latitude (optional, cek format string valid koordinat jika ingin)
+    const coordRegex = /^-?\d+(\.\d+)?$/; // regex sederhana untuk angka desimal, termasuk negatif
+
+    if (longitude !== undefined && longitude !== null && longitude !== "" && !coordRegex.test(longitude)) {
       return res.status(400).send({
-        message: "Longitude harus berupa angka.",
+        message: "Longitude harus berupa string angka desimal yang valid.",
       });
     }
 
-    if (latitude !== undefined && latitude !== null && latitude.trim() !== "" && isNaN(parseFloat(latitude))) {
+    if (latitude !== undefined && latitude !== null && latitude !== "" && !coordRegex.test(latitude)) {
       return res.status(400).send({
-        message: "Latitude harus berupa angka.",
+        message: "Latitude harus berupa string angka desimal yang valid.",
       });
     }
 
-    
     await mosque.update({
-      name,
-      address,
-      description: description ?? "",      // jika undefined jadi string kosong
-      image: imageFilename,
-      phone_whatsapp: phone_whatsapp ?? "",
-      email: email ?? "",
-      facebook: facebook ?? "",
-      instagram: instagram ?? "",
-      longitude: longitude && longitude.trim() !== "" ? parseFloat(longitude) : null,
-      latitude: latitude && latitude.trim() !== "" ? parseFloat(latitude) : null,
-    });
+    name,
+    address,
+    description: description ?? "",
+    image: imageFilename,
+    phone_whatsapp: phone_whatsapp ?? "",
+    email: email ?? "",
+    facebook: facebook ?? "",
+    instagram: instagram ?? "",
+    longitude: longitude ?? null, // langsung simpan string atau null
+    latitude: latitude ?? null,   // langsung simpan string atau null
+  });
 
 
     res.status(200).send({ message: "Profil masjid berhasil diperbarui." });
@@ -151,6 +153,81 @@ exports.updateAbout = async (req, res) => {
     res
       .status(500)
       .send({ message: "Terjadi kesalahan saat memperbarui profil masjid." });
+  }
+};
+
+exports.getPublicMosqueBySlug = async (req, res) => {
+  try {
+    // 1. Mengambil slug dari parameter URL
+    const { slug } = req.params;
+
+    // 2. Mencari masjid berdasarkan kolom 'slug' yang unik
+    const mosque = await Mosque.findOne({
+      where: { slug: slug },
+      // Hanya mengambil kolom yang aman untuk ditampilkan ke publik
+      attributes: [
+        "name", "address", "description", "image",
+        "phone_whatsapp", "email", "facebook", "instagram",
+        "longitude", "latitude"
+      ],
+    });
+
+    if (!mosque) {
+      return res.status(404).send({ message: "Data masjid tidak ditemukan." });
+    }
+
+    res.status(200).send({ data: mosque });
+  } catch (err) {
+    console.error("Error saat mengambil data masjid publik:", err);
+    res.status(500).send({ message: "Gagal mengambil data masjid." });
+  }
+};
+
+exports.getPrayerTimesBySlug = async (req, res) => {
+  try {
+    // 1. Mengambil slug dari parameter URL
+    const { slug } = req.params;
+    if (!slug) {
+      return res.status(400).json({ message: "Slug masjid diperlukan." });
+    }
+
+    // 2. Mencari masjid di database berdasarkan slug
+    const mosque = await Mosque.findOne({ where: { slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    // 3. Periksa apakah masjid memiliki data koordinat
+    const { latitude, longitude } = mosque;
+    if (!latitude || !longitude) {
+      return res.status(400).json({ message: "Data koordinat untuk masjid ini tidak tersedia." });
+    }
+
+    // 4. Panggil API Al-Adhan dengan koordinat yang didapat
+    const response = await axios.get(`http://api.aladhan.com/v1/timings`, {
+      params: { latitude, longitude, method: 8 }
+    });
+
+    if (response.data && response.data.code === 200 && response.data.data) {
+      const timings = response.data.data.timings;
+      const hijriDate = response.data.data.date.hijri;
+
+      const formattedData = {
+        subuh: timings.Fajr,
+        dzuhur: timings.Dhuhr,
+        ashar: timings.Asr,
+        maghrib: timings.Maghrib,
+        isya: timings.Isha,
+        tanggalHijriyah: `${hijriDate.day} ${hijriDate.month.en} ${hijriDate.year}`
+      };
+      res.status(200).json(formattedData);
+    } else {
+      throw new Error(response.data.data || "API jadwal sholat tidak memberikan respons yang valid.");
+    }
+
+  } catch (error) {
+    console.error("Gagal mengambil data jadwal sholat:", error.response ? error.response.data : error.message);
+    res.status(500).json({ message: "Gagal memproses permintaan jadwal sholat." });
   }
 };
 

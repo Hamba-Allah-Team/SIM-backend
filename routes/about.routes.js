@@ -21,6 +21,8 @@ module.exports = function (app) {
 
   // Routes untuk guest (tanpa autentikasi)
   app.get("/api/about/guest/:mosque_id", aboutController.getAboutByMosqueId);
+  app.get("/api/public/mosques/:slug", aboutController.getPublicMosqueBySlug);
+  app.get("/api/public/prayertimes/:slug", aboutController.getPrayerTimesBySlug);
 
   // Routes untuk user terautentikasi (tanpa upload)
   app.get("/api/about", verifyToken, aboutController.getAbout);
