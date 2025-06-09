@@ -31,10 +31,12 @@ module.exports = function (app) {
   app.delete("/api/content/:id", verifyToken, contentController.deleteContent);
 
   // Guest routes
-  app.get("/api/guest/content/:mosque_id", contentController.getPublicContents);
-  app.get(
-    "/api/guest/content/:mosque_id/:id",
-    contentController.getPublicContentById
-  );
+  // app.get("/api/guest/content/:mosque_id", contentController.getPublicContents);
+  app.get("/api/guest/content/:slug", contentController.getPublicContents2);
+  app.get("/api/guest/content/:slug/:id", contentController.getPublicContentById2);
+  // app.get(
+  //   "/api/guest/content/:mosque_id/:id",
+  //   contentController.getPublicContentById
+  // );
   app.get("/api/public/news/recent/:slug", contentController.getPublicRecentNews);
 };

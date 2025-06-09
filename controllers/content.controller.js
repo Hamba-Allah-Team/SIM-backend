@@ -43,12 +43,12 @@ exports.createContent = async (req, res) => {
     });
 
     res.status(201).send({
-      message: "Artikel berhasil dibuat.",
+      message: "Konten berhasil dibuat.",
       data: content,
     });
   } catch (err) {
-    console.error("Error saat membuat artikel:", err);
-    res.status(500).send({ message: "Terjadi kesalahan saat membuat artikel." });
+    console.error("Error saat membuat konten:", err);
+    res.status(500).send({ message: "Terjadi kesalahan saat membuat konten." });
   }
 };
 
@@ -74,10 +74,10 @@ exports.updateContent = async (req, res) => {
     }
 
     const article = await Content.findByPk(id);
-    if (!article) return res.status(404).send({ message: "Artikel tidak ditemukan." });
+    if (!article) return res.status(404).send({ message: "Konten tidak ditemukan." });
 
     if (article.mosque_id !== mosque_id) {
-      return res.status(403).send({ message: "Anda tidak memiliki izin untuk mengedit artikel ini." });
+      return res.status(403).send({ message: "Anda tidak memiliki izin untuk mengedit konten ini." });
     }
 
     // Jika ada file image baru yang diupload, validasi dan gunakan filename baru
@@ -114,10 +114,10 @@ exports.updateContent = async (req, res) => {
       mosque_id,
     });
 
-    res.status(200).send({ message: "Artikel berhasil diperbarui.", data: article });
+    res.status(200).send({ message: "Konten berhasil diperbarui.", data: article });
   } catch (err) {
-    console.error("Error saat memperbarui artikel:", err);
-    res.status(500).send({ message: "Terjadi kesalahan saat memperbarui artikel." });
+    console.error("Error saat memperbarui konten:", err);
+    res.status(500).send({ message: "Terjadi kesalahan saat memperbarui konten." });
   }
 };
 
@@ -138,19 +138,19 @@ exports.deleteContent = async (req, res) => {
     const article = await Content.findByPk(id);
 
     if (!article) {
-      return res.status(404).send({ message: "Artikel tidak ditemukan." });
+      return res.status(404).send({ message: "Konten tidak ditemukan." });
     }
 
     // Pastikan artikel ini milik masjid yang sesuai dengan user yang login
     if (article.mosque_id !== mosque_id) {
-      return res.status(403).send({ message: "Anda tidak memiliki izin untuk menghapus artikel ini." });
+      return res.status(403).send({ message: "Anda tidak memiliki izin untuk menghapus konten ini." });
     }
 
     await article.destroy();
 
-    res.status(200).send({ message: "Artikel berhasil dihapus." });
+    res.status(200).send({ message: "Konten berhasil dihapus." });
   } catch (err) {
-    res.status(500).send({ message: "Terjadi kesalahan saat menghapus artikel." });
+    res.status(500).send({ message: "Terjadi kesalahan saat menghapus konten." });
   }
 };
 
@@ -193,8 +193,8 @@ exports.getContents = async (req, res) => {
       totalCount: contents.length,
     });
   } catch (err) {
-    console.error("Error saat mengambil artikel:", err);
-    res.status(500).send({ message: "Terjadi kesalahan saat mengambil artikel." });
+    console.error("Error saat mengambil konten:", err);
+    res.status(500).send({ message: "Terjadi kesalahan saat mengambil konten." });
   }
 };
 
@@ -220,16 +220,16 @@ exports.getContentById = async (req, res) => {
     });
 
     if (!article) {
-      return res.status(404).send({ message: "Artikel tidak ditemukan." });
+      return res.status(404).send({ message: "Konten tidak ditemukan." });
     }
 
     res.status(200).send({
-      message: "Artikel ditemukan.",
+      message: "Konten ditemukan.",
       data: article,
     });
   } catch (err) {
-    console.error("Error saat mengambil artikel:", err);
-    res.status(500).send({ message: "Terjadi kesalahan saat mengambil artikel." });
+    console.error("Error saat mengambil konten:", err);
+    res.status(500).send({ message: "Terjadi kesalahan saat mengambil konten." });
   }
 };
 
@@ -263,8 +263,8 @@ exports.getPublicContents = async (req, res) => {
       totalCount: contents.count,
     });
   } catch (err) {
-    console.error("Error mengambil artikel publik:", err);
-    res.status(500).send({ message: "Gagal mengambil artikel publik." });
+    console.error("Error mengambil konten publik:", err);
+    res.status(500).send({ message: "Gagal mengambil konten publik." });
   }
 };
 
@@ -282,16 +282,16 @@ exports.getPublicContentById = async (req, res) => {
     });
 
     if (!article) {
-      return res.status(404).send({ message: "Artikel tidak ditemukan." });
+      return res.status(404).send({ message: "Konten tidak ditemukan." });
     }
 
     res.status(200).send({
-      message: "Artikel ditemukan.",
+      message: "Konten ditemukan.",
       data: article,
     });
   } catch (err) {
-    console.error("Error mengambil artikel publik:", err);
-    res.status(500).send({ message: "Gagal mengambil artikel publik." });
+    console.error("Error mengambil konten publik:", err);
+    res.status(500).send({ message: "Gagal mengambil konten publik." });
   }
 };
 
@@ -334,5 +334,80 @@ exports.getPublicRecentNews = async (req, res) => {
   } catch (error) {
     console.error("Error fetching recent news:", error);
     res.status(500).json({ message: "Gagal mengambil berita terbaru" });
+  }
+};
+
+// GET all contents by mosque slug (untuk guest)
+exports.getPublicContents2 = async (req, res) => {
+  try {
+    // Ambil slug dari params
+    const { slug } = req.params;
+    const { search = "", sortBy = "published_date", order = "ASC" } = req.query;
+
+    // Cari masjid berdasarkan slug untuk mendapatkan mosque_id
+    const mosque = await db.mosques.findOne({ where: { slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    const contents = await Content.findAndCountAll({
+      where: {
+        mosque_id: mosque.mosque_id,
+        [Op.or]: [
+          {
+            title: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+          {
+            content_description: {
+              [Op.like]: `%${search}%`,
+            },
+          },
+        ],
+      },
+      order: [[sortBy, order]],
+    });
+
+    res.status(200).send({
+      data: contents.rows,
+      totalCount: contents.count,
+    });
+  } catch (err) {
+    console.error("Error mengambil konten publik:", err);
+    res.status(500).send({ message: "Gagal mengambil konten publik." });
+  }
+};
+
+// GET single content by ID dan mosque slug (untuk guest)
+exports.getPublicContentById2 = async (req, res) => {
+  try {
+    const { slug, id } = req.params;
+
+    // Cari masjid berdasarkan slug untuk dapatkan mosque_id
+    const mosque = await db.mosques.findOne({ where: { slug } });
+    if (!mosque) {
+      return res.status(404).json({ message: "Masjid tidak ditemukan." });
+    }
+
+    // Cari konten berdasarkan ID dan mosque_id
+    const article = await Content.findOne({
+      where: {
+        contents_id: id,
+        mosque_id: mosque.mosque_id,
+      },
+    });
+
+    if (!article) {
+      return res.status(404).send({ message: "Konten tidak ditemukan." });
+    }
+
+    res.status(200).send({
+      message: "Konten ditemukan.",
+      data: article,
+    });
+  } catch (err) {
+    console.error("Error mengambil konten publik:", err);
+    res.status(500).send({ message: "Gagal mengambil konten publik." });
   }
 };
