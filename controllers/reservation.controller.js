@@ -4,7 +4,7 @@ const { Op } = require("sequelize");
 
 exports.createReservation = async (req, res) => {
     try {
-        const {room_id, name, phone_number, description, reservation_date, start_time, end_time } = req.body;
+        const {room_id, title, name, phone_number, description, reservation_date, start_time, end_time } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -67,6 +67,7 @@ exports.createReservation = async (req, res) => {
         const newReservation = await Reservation.create({
             mosque_id,
             room_id,
+            title,
             name,
             phone_number,
             description,
@@ -197,7 +198,7 @@ exports.getReservationById = async (req, res) => {
 exports.updateReservation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { room_id, name, phone_number, description, reservation_date, start_time, end_time, status } = req.body;
+        const { room_id, title, name, phone_number, description, reservation_date, start_time, end_time, status } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -252,6 +253,7 @@ exports.updateReservation = async (req, res) => {
 
         await existingReservation.update({
             room_id,
+            title,
             name,
             phone_number,
             description,

@@ -19,6 +19,6 @@ module.exports = function (app) {
     app.delete("/api/rooms/:id", verifyToken, roomController.deleteRoom); // Menghapus ruangan, memerlukan verifikasi token
     
     // Room routes guest
-    // app.get("/api/rooms/guest/:mosque_id", roomController.getPublicRoom); // Ambil semua ruangan publik berdasarkan mosque_id
-    // app.get("/api/rooms/guest/:mosque_id/:id", roomController.getPublicRoomById); // Ambil 1 ruangan publik berdasarkan mosque_id dan id
+    app.get("/api/guest/rooms/:slug", roomController.getPublicRooms); // Menampilkan daftar ruangan untuk tamu
+    // app.get("/api/guest/rooms/:slug/:id", roomController.getPublicRoomById); // Menampilkan detail ruangan untuk tamu berdasarkan ID
 }

@@ -26,6 +26,14 @@ module.exports = (sequelize, Sequelize) => {
             type: Sequelize.TEXT,
             allowNull: true
         },
+        capacity: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
+        facilities: {
+            type: Sequelize.TEXT,
+            allowNull: false
+        },
         created_at: {
             type: Sequelize.DATE,
             defaultValue: Sequelize.NOW

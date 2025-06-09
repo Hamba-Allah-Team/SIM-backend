@@ -10,7 +10,7 @@ const isValidImage = (image) => {
 
 exports.createRoom = async (req, res) => {
     try {
-        const {place_name, description } = req.body;
+        const {place_name, description, facilities, capacity } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -24,8 +24,8 @@ exports.createRoom = async (req, res) => {
 
         const mosque_id = user.mosque_id;
 
-        if (!place_name || !description) {
-            return res.status(400).send({ message: "Nama ruangan dan deskripsi wajib diisi." });
+        if (!place_name || !description || !facilities || !capacity) {
+            return res.status(400).send({ message: "Nama ruangan, deskripsi, fasilitas, dan kapasitas wajib diisi." });
         }
         if (req.file) {
             if (!isValidImage(req.file)) {
@@ -50,7 +50,9 @@ exports.createRoom = async (req, res) => {
             mosque_id,
             place_name,
             image: req.file ? req.file.filename : null,
-            description: description || null
+            description,
+            facilities,
+            capacity
         });
 
         res.status(201).send({
@@ -145,7 +147,7 @@ exports.getRoomById = async (req, res) => {
 exports.updateRoom = async (req, res) => {
     try {
         const { id } = req.params;
-        const { place_name, description } = req.body;
+        const { place_name, description, facilities, capacity } = req.body;
         const fs = require("fs");
         const path = require("path");
 
@@ -164,8 +166,8 @@ exports.updateRoom = async (req, res) => {
 
         const deleteImage = req.body.delete_image === 'true';
 
-        if (!place_name || !description) {
-            return res.status(400).send({ message: "Nama ruangan dan deskripsi wajib diisi." });
+        if (!place_name || !description || !facilities || !capacity) {
+            return res.status(400).send({ message: "Nama ruangan, deskripsi, fasilitas, dan kapasitas wajib diisi." });
         }
         // Cek apakah ruangan sudah ada
         const existingRoom = await Room.findByPk(id);
@@ -204,7 +206,9 @@ exports.updateRoom = async (req, res) => {
         const updatedRoom = await Room.update({
             place_name,
             image: image,
-            description
+            description,
+            facilities,
+            capacity
         }, {
             where: {
                 room_id: id,
@@ -276,3 +280,76 @@ exports.deleteRoom = async (req, res) => {
         res.status(500).json({ message: "Terjadi kesalahan saat menghapus ruangan" });
     }
 }
+
+exports.getPublicRooms = async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        const mosque = await db.mosques.findOne({
+            where: {
+                slug
+            }
+        });
+
+        if (!mosque) {
+            return res.status(404).send({ message: "Masjid tidak ditemukan." });
+        }
+
+        const listRoom = await Room.findAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                deleted_at: null
+            },
+            order: [['room_id', 'ASC']]
+        });
+
+        res.status(200).send({
+            data: listRoom
+        });
+    } catch (error) {
+        console.error("Error fetching public rooms:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat mengambil daftar ruangan" });
+    }
+}
+
+// exports.getPublicRoomById = async (req, res) => {
+//     try {
+//         const { slug, id } = req.params;
+
+//         const mosque = await db.mosques.findOne({
+//             where: {
+//                 slug
+//             }
+//         });
+
+//         if (!mosque) {
+//             return res.status(404).send({ message: "Masjid tidak ditemukan." });
+//         }
+
+//         const detailroom = await Room.findOne({
+//             where: {
+//                 room_id: id,
+//                 mosque_id: mosque.mosque_id,
+//                 deleted_at: null
+//             },
+//             includes: [{
+//                 model: db.reservation,
+//                 as: 'reservations',
+//                 attributes: ['reservation_id', 'user_id', 'room_id', 'start_time', 'end_time', 'status']
+//             }]
+//         });
+
+//         if (!detailroom) {
+//             return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+//         }
+
+//         res.status(200).send({
+//             message: "Detail ruangan ditemukan.",
+//             data: detailroom
+//         });
+
+//     } catch (error) {
+//         console.error("Error fetching public room by ID:", error);
+//         res.status(500).json({ message: "Terjadi kesalahan saat mengambil detail ruangan" });
+//     }
+// }

@@ -9,6 +9,7 @@ module.exports = {
       reservation_id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       mosque_id: { type: Sequelize.INTEGER, allowNull: false, references: { model: 'mosques', key: 'mosque_id' } },
       room_id: { type: Sequelize.INTEGER, allowNull: false, references: { model: 'reservations_room', key: 'room_id' } },
+      title: { type: Sequelize.STRING, allowNull: false },
       name: { type: Sequelize.STRING, allowNull: false },
       phone_number: { type: Sequelize.STRING, allowNull: false },
       description: { type: Sequelize.TEXT, allowNull: false },

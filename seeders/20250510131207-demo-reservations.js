@@ -16,6 +16,7 @@ module.exports = {
       {
         mosque_id: 1,
         room_id: 1,
+        title: 'Kajian Remaja',
         name: 'Ahmad Yusuf',
         phone_number: '081234567890',
         description: 'Menggunakan aula untuk acara kajian remaja.',
@@ -30,6 +31,7 @@ module.exports = {
       {
         mosque_id: 1,
         room_id: 2,
+        title: 'Pengajian Ibu-Ibu',
         name: 'Fatimah Zahra',
         phone_number: '081298765432',
         description: 'Reservasi ruang serbaguna untuk pengajian ibu-ibu.',
@@ -44,6 +46,7 @@ module.exports = {
       {
         mosque_id: 1,
         room_id: 3,
+        title: 'Rapat Pengurus',
         name: 'Budi Santoso',
         phone_number: '085612345678',
         description: 'Rapat komite masjid.',
