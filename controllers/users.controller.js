@@ -60,20 +60,30 @@ exports.updateUser = async (req, res) => {
   try {
     const loggedInUserId = req.userId;
     const targetUserId = req.params.id;
+    const { name, email, username, status, role, password } = req.body;
 
-    const { name, email, username, status, role } = req.body;
-
+    // Validasi input dasar
     if (!name || !email || !username) {
-      return res
-        .status(400)
-        .send({ message: "Nama, email, dan username wajib diisi." });
+      return res.status(400).send({ message: "Nama, email, dan username wajib diisi." });
     }
 
-    const user = await User.findByPk(targetUserId, {
-      include: [{ model: db.mosques, as: "mosque" }],
-    });
+    // Validasi format email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).send({ message: "Format email tidak valid" });
+    }
+
+    const user = await User.findByPk(targetUserId);
     if (!user || user.deleted_at) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
+    }
+
+    // Cek email unik HANYA jika email berubah
+    if (user.email !== email) {
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser && existingUser.user_id !== targetUserId) {
+        return res.status(400).send({ message: "Email sudah digunakan oleh pengguna lain" });
+      }
     }
 
     const loggedInUser = await User.findByPk(loggedInUserId);
@@ -81,26 +91,50 @@ exports.updateUser = async (req, res) => {
       return res.status(403).send({ message: "Tidak diizinkan (pengguna tidak valid)." });
     }
 
-    if (loggedInUser.role === "superadmin") {
-      await user.update({ name, email, username, status, role });
-      return res
-        .status(200)
-        .send({ message: "Pengguna berhasil diperbarui oleh superadmin." });
-    }
-
-    if (loggedInUser.role === "admin") {
-      if (loggedInUserId.toString() !== user.user_id.toString()) { 
-        return res.status(403).send({
-          message: "Admin hanya dapat memperbarui akun miliknya sendiri.",
-        });
+    // Verifikasi password hanya untuk perubahan email
+    if (user.email !== email) {
+      if (!password) {
+        return res.status(400).send({ message: "Password diperlukan untuk mengubah email" });
       }
-      await user.update({ name, email, username }); 
-      return res.status(200).send({ message: "Profil Anda berhasil diperbarui." });
+
+      const isPasswordValid = await bcrypt.compare(password, loggedInUser.password);
+      if (!isPasswordValid) {
+        return res.status(401).send({ message: "Password tidak valid" });
+      }
     }
 
-    return res.status(403).send({
-      message: "Anda tidak memiliki izin untuk melakukan tindakan ini.",
+    // Update user
+    await user.update({ 
+      name, 
+      username,
+      email,
+      ...(loggedInUser.role === 'superadmin' && { status, role })
     });
+
+    // Kirim notifikasi email jika email berubah
+    if (user.email !== email) {
+      await sendMail({
+        to: email,
+        subject: "Perubahan Email Berhasil",
+        html: `Halo ${name},<br><br>
+              Email akun Anda telah berhasil diubah.<br>
+              Email baru: ${email}<br><br>
+              Jika Anda tidak melakukan perubahan ini, segera hubungi layanan dukungan.<br><br>
+              Terima kasih.`
+      });
+
+      await sendMail({
+        to: user.email,
+        subject: "Pemberitahuan Perubahan Email",
+        html: `Halo ${name},<br><br>
+              Email akun Anda telah diubah menjadi ${email}.<br>
+              Jika Anda tidak melakukan perubahan ini, segera hubungi layanan dukungan.<br><br>
+              Terima kasih.`
+      });
+    }
+
+    return res.status(200).send({ message: "Profil berhasil diperbarui." });
+
   } catch (err) {
     console.error("Update error:", err);
     res.status(500).send({ message: err.message });
@@ -110,23 +144,27 @@ exports.updateUser = async (req, res) => {
 exports.profile = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
-      attributes: { exclude: ["password"] },
-      include: [
-        {
-          model: db.mosques,
-          as: "mosque",
-          attributes: { exclude: ["createdAt", "updatedAt"] },
-        },
-      ],
+      attributes: {
+        include: [
+          ['user_id', 'id'] 
+        ],
+        exclude: [
+          'password',
+          'user_id'  
+        ]
+      },
+      include: [{
+        model: db.mosques,
+        as: "mosque",
+        attributes: { exclude: ["createdAt", "updatedAt"] },
+      }],
     });
-
     if (!user) {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
 
     res.status(200).send(user);
   } catch (error) {
-    console.error("Error fetching profile:", error);
     res.status(500).send({ message: error.message });
   }
 };
