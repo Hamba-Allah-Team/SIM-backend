@@ -366,3 +366,58 @@ exports.getAllUpcomingActivities = async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil data kegiatan" });
     }
 };
+
+exports.getPastActivities = async (req, res) => {
+    try {
+        const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
+        if (!mosque) {
+            return res.status(404).json({ message: "Masjid tidak ditemukan." });
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const { count, rows } = await Activity.findAndCountAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                // 👈 PERUBAHAN UTAMA: Mengambil kegiatan yang tanggal berakhirnya < hari ini
+                end_date: {
+                    [Op.lt]: today
+                },
+            },
+            order: [['start_date', 'DESC']], // Diurutkan dari yang paling baru
+            limit,
+            offset,
+        });
+
+        const formattedActivities = rows.map(activity => {
+            const activityDate = new Date(activity.start_date);
+            return {
+                id: activity.activities_id,
+                day: format(activityDate, 'dd'),
+                month: format(activityDate, 'MMM', { locale: id }),
+                full_date: format(activityDate, "eeee, d MMMM yyyy", { locale: id }),
+                title: activity.event_name,
+                location: mosque.name,
+                image: activity.image ? `${req.protocol}://${req.get('host')}${activity.image}` : null,
+                description: activity.event_description,
+                time: activity.start_time ? activity.start_time.substring(0, 5) : "N/A"
+            };
+        });
+
+        res.json({
+            data: formattedActivities,
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+        });
+
+    } catch (error) {
+        console.error("Error fetching past activities:", error);
+        res.status(500).json({ message: "Gagal mengambil data kegiatan lampau" });
+    }
+};
