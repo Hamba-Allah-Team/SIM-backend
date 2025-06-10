@@ -1,8 +1,10 @@
 const { createContent } = require("../controllers/content.controller");
 const { updateContent } = require("../controllers/content.controller");
+const { deleteContent } = require("../controllers/content.Controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
+const Content = db.contents;
 
 jest.mock("../models");
 jest.mock("fs");
@@ -255,3 +257,58 @@ describe("updateContent", () => {
   });
 });
 
+// delete content
+describe("deleteContent", () => {
+  let req, res;
+
+  beforeEach(() => {
+    req = {
+      params: { id: "1" },
+      userId: 10, 
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("should return 404 if user is not found", async () => {
+    db.user.findByPk.mockResolvedValue(null);
+
+    await deleteContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ message: "Pengguna tidak ditemukan." });
+  });
+
+  it("should delete content and return success message", async () => {
+    const mockArticle = {
+      id: 1,
+      mosque_id: 1,
+      destroy: jest.fn().mockResolvedValue(undefined),
+    };
+
+    db.user.findByPk.mockResolvedValue({ id: 10, mosque_id: 1 });
+    Content.findByPk.mockResolvedValue(mockArticle);
+
+    await deleteContent(req, res);
+
+    expect(mockArticle.destroy).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({ message: "Konten berhasil dihapus." });
+  });
+
+  it("should return 500 if unexpected error occurs", async () => {
+    db.user.findByPk.mockRejectedValue(new Error("Unexpected error"));
+
+    await deleteContent(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith({ message: "Terjadi kesalahan saat menghapus konten." });
+  });
+});
