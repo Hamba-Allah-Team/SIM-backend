@@ -79,24 +79,51 @@ exports.createTransaction = async (req, res) => {
 
 exports.getAllTransactions = async (req, res) => {
     try {
-        // Mendapatkan user_id dari req.userId setelah verifikasi token
         const userId = req.userId;
+        const user = await db.user.findByPk(userId);
+        if (!user) return res.status(404).send({ message: "Pengguna tidak ditemukan." });
 
-        // Mendapatkan parameter includeDeleted dari query
-        const includeDeleted = req.query.includeDeleted === 'true';
+        const mosqueId = user.mosque_id;
 
-        // Query untuk mencari transaksi berdasarkan user_id
+        const { type = 'cashflow', includeDeleted = 'false' } = req.query;
+
+        let transactionTypeFilter = {};
+        if (type === 'cashflow') {
+            transactionTypeFilter = { [Op.in]: ['income', 'expense'] };
+        } else if (type === 'transfer') {
+            transactionTypeFilter = { [Op.in]: ['transfer_in', 'transfer_out'] };
+        }
+
         const transactions = await WalletTransactions.findAll({
+            paranoid: includeDeleted !== 'true',
+            order: [['transaction_date', 'DESC'], ['created_at', 'DESC']],
+            // 👈 PERBAIKAN DI SINI: Menggunakan 'include' untuk memfilter berdasarkan mosque_id
+            include: [
+                {
+                    model: db.wallet, // Mengasumsikan model dompet Anda adalah 'wallet'
+                    as: 'wallet',
+                    attributes: [], // Tidak perlu mengambil data dari tabel wallet, hanya untuk join
+                    where: {
+                        mosque_id: mosqueId
+                    },
+                    required: true // Memastikan ini adalah INNER JOIN
+                },
+                {
+                    model: db.transaction_category, // Menyertakan kategori untuk data yang lebih lengkap jika diperlukan
+                    as: 'category',
+                    attributes: [] // Opsional: bisa juga mengambil category_name
+                }
+            ],
             where: {
-                user_id: userId,  // Hanya transaksi milik user dengan userId yang terverifikasi
-            },
-            paranoid: !includeDeleted,  // Memperhitungkan transaksi yang sudah dihapus
-            order: [['transaction_date', 'DESC']],  // Mengurutkan transaksi berdasarkan tanggal secara menurun
+                // Filter tipe transaksi diterapkan di sini jika ada
+                ...(type !== 'all' && { transaction_type: transactionTypeFilter })
+            }
         });
 
-        res.json(transactions);  // Mengembalikan data transaksi dalam format JSON
-    } catch (error) {
-        console.error("Error retrieving transactions:", error);
+        res.json(transactions);
+
+    } catch (err) {
+        console.error("Error retrieving transactions:", err);
         res.status(500).json({ message: "Failed to retrieve transactions" });
     }
 };
@@ -940,170 +967,162 @@ exports.getPeriodicReportExport = async (req, res) => {
             return res.status(400).json({ message: "Parameter tidak lengkap." });
         }
 
-        const startDate = new Date(period === "monthly" ? `${year}-${month}-01` : `${year}-01-01`);
-        const endDate = new Date(period === "monthly"
-            ? new Date(year, month, 0)
-            : new Date(`${parseInt(year) + 1}-01-01`)
-        );
+        const startDate = new Date(Date.UTC(year, period === 'monthly' ? month - 1 : 0, 1));
+        const endDate = new Date(Date.UTC(year, period === 'monthly' ? month : 12, 0, 23, 59, 59, 999));
 
-        // ⬇️ Tambahan: cari mosque_id dari user
-        const user = await db.user.findByPk(userId);
-        if (!user) {
-            return res.status(404).json({ message: "User tidak ditemukan." });
+        const user = await db.user.findByPk(userId, { include: [{ model: db.mosques, as: 'mosque' }] });
+        if (!user || !user.mosque_id) {
+            return res.status(404).json({ message: "User atau data masjid tidak ditemukan." });
         }
         const mosqueId = user.mosque_id;
+        const mosqueName = user.mosque.name;
 
-        const wallets = await db.wallet.findAll({
-            where: {
-                deleted_at: null,
-                mosque_id: mosqueId
-            }
-        });
-
+        const wallets = await Wallets.findAll({ where: { mosque_id: mosqueId } });
         const walletIds = wallets.map(w => w.wallet_id);
 
-        const saldoAwal = await db.wallet_transaction.sum('amount', {
+        if (walletIds.length === 0) {
+            return res.status(404).json({ message: "Tidak ada dompet yang ditemukan untuk masjid ini." });
+        }
+
+        // Hitung Saldo Awal yang Benar
+        const transactionsBefore = await WalletTransactions.findAll({
             where: {
-                transaction_type: 'initial_balance',
-                deleted_at: null,
                 wallet_id: { [Op.in]: walletIds },
-                transaction_date: { [Op.lte]: startDate } // gunakan Op.lte untuk termasuk tanggal awal
+                transaction_date: { [Op.lt]: startDate },
+            },
+            attributes: ['amount', 'transaction_type']
+        });
+
+        let saldoAwal = 0;
+        transactionsBefore.forEach(tx => {
+            const amount = Number(tx.amount);
+            if (['income', 'initial_balance', 'transfer_in'].includes(tx.transaction_type)) {
+                saldoAwal += amount;
+            } else {
+                saldoAwal -= amount;
             }
-        }) || 0;
-
-
-        // Ambil transaksi untuk periode
-        const transactions = await db.wallet_transaction.findAll({
-            where: {
-                user_id: userId,
-                transaction_date: { [Op.between]: [startDate, endDate] },
-                transaction_type: { [Op.in]: ['income', 'expense'] },
-                deleted_at: null
-            },
-            include: [
-                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] },
-                { model: db.transaction_category, as: 'category', attributes: ['category_name'] }
-            ],
-            order: [['transaction_date', 'ASC']]
         });
 
-        // Ambil juga initial_balance yang ada dalam periode ini (opsional: ditampilkan di tabel)
-        const initialBalances = await db.wallet_transaction.findAll({
+        // Ambil Semua Transaksi di Dalam Periode Laporan
+        const transactionsInPeriod = await WalletTransactions.findAll({
             where: {
-                transaction_type: 'initial_balance',
-                deleted_at: null,
                 wallet_id: { [Op.in]: walletIds },
-                transaction_date: { [Op.between]: [startDate, endDate] }
+                transaction_date: { [Op.between]: [startDate, endDate] },
             },
             include: [
-                { model: db.wallet, as: 'wallet', attributes: ['wallet_name'] }
+                { model: Wallets, as: 'wallet', attributes: ['wallet_name'] },
+                { model: TransactionCategory, as: 'category', attributes: ['category_name'] }
             ],
-            order: [['transaction_date', 'ASC']]
+            order: [['transaction_date', 'ASC'], ['created_at', 'ASC']]
         });
 
+        // 👈 PERBAIKAN: Pisahkan dan kelompokkan transaksi berdasarkan kategori
         let totalIncome = 0;
         let totalExpense = 0;
+        const groupedIncome = {};
+        const groupedExpense = {};
 
-        const incomeExpenseRows = transactions.map(tx => {
+        transactionsInPeriod.forEach(tx => {
             const amount = Number(tx.amount);
-            if (tx.transaction_type === 'income') totalIncome += amount;
-            else if (tx.transaction_type === 'expense') totalExpense += amount;
+            const category = tx.category?.category_name || 'Lain-lain';
 
-            return {
-                date: tx.transaction_date.toISOString().split('T')[0],
-                type: tx.transaction_type,
-                category: tx.category?.category_name || '',
+            const transactionData = {
+                date: tx.transaction_date,
+                description: tx.source_or_usage || tx.category?.category_name || 'Transaksi',
                 wallet: tx.wallet?.wallet_name || '',
-                description: tx.source_or_usage || '',
-                amount
+                amount: amount
             };
+
+            if (tx.transaction_type === 'income') {
+                totalIncome += amount;
+                if (!groupedIncome[category]) groupedIncome[category] = [];
+                groupedIncome[category].push(transactionData);
+            } else if (tx.transaction_type === 'expense') {
+                totalExpense += amount;
+                if (!groupedExpense[category]) groupedExpense[category] = [];
+                groupedExpense[category].push(transactionData);
+            }
         });
 
-        const initialBalanceRows = initialBalances.map(tx => ({
-            date: tx.transaction_date.toISOString().split('T')[0],
-            type: 'initial_balance',
-            category: '-',
-            wallet: tx.wallet?.wallet_name || '',
-            description: tx.source_or_usage || 'Saldo Awal',
-            amount: Number(tx.amount)
-        }));
+        const saldoAkhir = saldoAwal + totalIncome - totalExpense;
 
-        const allRows = incomeExpenseRows.sort((a, b) => new Date(a.date) - new Date(b.date));
-        const saldoBersih = saldoAwal + totalIncome - totalExpense;
-
+        // 👈 PERBAIKAN: Format PDF baru yang lebih terstruktur
         if (format === 'pdf') {
-            const moment = require("moment");
             moment.locale('id');
+            const periodString = period === 'monthly' ? moment(startDate).format('MMMM YYYY') : `Tahun ${year}`;
+
+            // Helper untuk membuat tabel kategori
+            const createCategoryTable = (title, data) => {
+                const body = [];
+                body.push([{ text: 'Tanggal', style: 'tableHeader' }, { text: 'Keterangan', style: 'tableHeader' }, { text: 'Jumlah (Rp)', style: 'tableHeader', alignment: 'right' }]);
+
+                for (const category in data) {
+                    body.push([{ text: category, bold: true, colSpan: 3, margin: [0, 5, 0, 2], fillColor: '#eeeeee' }, {}, {}]);
+                    let categoryTotal = 0;
+                    data[category].forEach(tx => {
+                        categoryTotal += tx.amount;
+                        body.push([
+                            moment(tx.date).format("DD/MM/YYYY"),
+                            `${tx.description} (${tx.wallet})`,
+                            { text: tx.amount.toLocaleString('id-ID'), alignment: 'right' }
+                        ]);
+                    });
+                    body.push([{ text: 'Subtotal Kategori', bold: true, alignment: 'right', colSpan: 2, margin: [0, 2, 0, 5] }, {}, { text: categoryTotal.toLocaleString('id-ID'), bold: true, alignment: 'right', margin: [0, 2, 0, 5] }]);
+                }
+
+                return [
+                    { text: title, style: 'subheader' },
+                    {
+                        style: 'transactionsTable',
+                        table: {
+                            headerRows: 1,
+                            widths: ['auto', '*', 'auto'],
+                            body: body
+                        },
+                        layout: 'lightHorizontalLines'
+                    }
+                ];
+            };
 
             const docDefinition = {
                 content: [
-                    { text: "LAPORAN KEUANGAN PERIODIK", style: "header" },
+                    { text: `LAPORAN KEUANGAN`, style: "header" },
+                    { text: `${mosqueName.toUpperCase()}`, style: "subheader" },
+                    { text: `Periode: ${periodString}`, alignment: "center", margin: [0, 0, 0, 20] },
                     {
-                        text: `Periode: ${period === 'monthly' ? moment(`${year}-${month}-01`).format('MMMM YYYY') : `Tahun ${year}`}`,
-                        alignment: "center",
-                        margin: [0, 0, 0, 10]
-                    },
-
-                    { text: `Saldo Awal : Rp${saldoAwal.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
-                    { text: `Total Pemasukan : Rp${totalIncome.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
-                    { text: `Total Pengeluaran : Rp${totalExpense.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 2] },
-                    { text: `Saldo Bersih : Rp${saldoBersih.toLocaleString('id-ID')}`, bold: true, margin: [0, 0, 0, 10] },
-
-                    {
+                        style: 'summaryTable',
                         table: {
-                            headerRows: 1,
-                            widths: [25, 70, 50, 70, 70, 80, "*"],
+                            widths: ['*', 'auto'],
                             body: [
-                                [
-                                    { text: "No", bold: true },
-                                    { text: "Tanggal", bold: true },
-                                    { text: "Jenis", bold: true },
-                                    { text: "Kategori", bold: true },
-                                    { text: "Dompet", bold: true },
-                                    { text: "Nominal", bold: true },
-                                    { text: "Keterangan", bold: true }
-                                ],
-                                ...allRows.map((tx, i) => [
-                                    i + 1,
-                                    moment(tx.date).format("dddd, DD MMMM YYYY"),
-                                    tx.type === "income"
-                                        ? "Pemasukan"
-                                        : tx.type === "expense"
-                                            ? "Pengeluaran"
-                                            : "Saldo Awal",
-                                    tx.category,
-                                    tx.wallet,
-                                    `Rp${tx.amount.toLocaleString('id-ID')}`,
-                                    tx.description
-                                ])
+                                ['Saldo Awal Periode', { text: `Rp ${saldoAwal.toLocaleString('id-ID')}`, alignment: 'right' }],
+                                ['Total Pemasukan', { text: `Rp ${totalIncome.toLocaleString('id-ID')}`, alignment: 'right', color: 'green' }],
+                                ['Total Pengeluaran', { text: `Rp ${totalExpense.toLocaleString('id-ID')}`, alignment: 'right', color: 'red' }],
+                                [{ text: 'Saldo Akhir Periode', bold: true, fontSize: 12 }, { text: `Rp ${saldoAkhir.toLocaleString('id-ID')}`, bold: true, alignment: 'right', fontSize: 12 }],
                             ]
                         },
-                        layout: "lightHorizontalLines"
+                        layout: 'noBorders'
                     },
-
-                    { text: `\nDicetak pada: ${moment().format("dddd, DD MMMM YYYY HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
+                    ...createCategoryTable('Rincian Pemasukan', groupedIncome),
+                    ...createCategoryTable('Rincian Pengeluaran', groupedExpense),
+                    { text: `\n\nDicetak pada: ${moment().format("dddd, DD MMMM YYYY HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
                 ],
                 styles: {
-                    header: {
-                        fontSize: 16,
-                        bold: true,
-                        alignment: "center",
-                        margin: [0, 0, 0, 10]
-                    }
+                    header: { fontSize: 16, bold: true, alignment: "center" },
+                    subheader: { fontSize: 14, bold: true, margin: [0, 15, 0, 5] },
+                    summaryTable: { margin: [0, 0, 0, 15] },
+                    transactionsTable: { margin: [0, 5, 0, 15] },
+                    tableHeader: { bold: true, fontSize: 10, color: 'black' }
                 },
-                defaultStyle: {
-                    font: "Roboto"
-                }
+                defaultStyle: { font: "Roboto", fontSize: 10 }
             };
 
             const pdfDoc = printer.createPdfKitDocument(docDefinition);
-            const filename = `laporan_${period}_${year}${month ? '_' + month : ''}.pdf`;
             res.setHeader("Content-Type", "application/pdf");
-            res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+            res.setHeader("Content-Disposition", `attachment; filename="laporan-keuangan.pdf"`);
             pdfDoc.pipe(res);
             pdfDoc.end();
         } else {
-            return res.status(400).json({ message: "Format belum didukung, hanya 'pdf' untuk saat ini." });
+            return res.status(400).json({ message: "Format belum didukung." });
         }
 
     } catch (error) {

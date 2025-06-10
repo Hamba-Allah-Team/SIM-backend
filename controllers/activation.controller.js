@@ -445,7 +445,12 @@ exports.getActivationRequests = async (req, res) => {
     };
 
     if (status) {
-      where.status = status;
+      if (status.includes(',')) {
+        const statuses = status.split(',');
+        where.status = { [Op.in]: statuses };
+      } else {
+        where.status = status;
+      }
     }
 
     if (search) {
@@ -453,6 +458,7 @@ exports.getActivationRequests = async (req, res) => {
       where[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
+        { proof_number: { [Op.iLike]: `%${search}%` } },
         ...(!isNaN(searchNum) ? [{ activation_id: searchNum }] : []),
       ];
     }
@@ -515,7 +521,12 @@ exports.getExtensionRequests = async (req, res) => {
     };
 
     if (status) {
-      where.status = status;
+      if (status.includes(',')) {
+        const statuses = status.split(',');
+        where.status = { [Op.in]: statuses };
+      } else {
+        where.status = status;
+      }
     }
 
     if (search) {
@@ -523,6 +534,7 @@ exports.getExtensionRequests = async (req, res) => {
       where[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
+        { proof_number: { [Op.iLike]: `%${search}%` } },
         ...(!isNaN(searchNum) ? [{ activation_id: searchNum }] : []),
       ];
     }
