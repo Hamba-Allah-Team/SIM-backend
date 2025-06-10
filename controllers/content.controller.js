@@ -73,7 +73,7 @@ exports.updateContent = async (req, res) => {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
 
-    const article = await Content.findByPk(id);
+    const article = await db.Content.findByPk(id);
     if (!article) return res.status(404).send({ message: "Konten tidak ditemukan." });
 
     if (article.mosque_id !== mosque_id) {
