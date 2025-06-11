@@ -7,26 +7,20 @@ const Mosque = db.mosques;
 const { format } = require('date-fns'); // 👈 Impor date-fns
 const { id } = require('date-fns/locale'); // 👈 Impor locale Indonesia
 const { Op } = require("sequelize");
-const projectRoot = path.resolve(__dirname, '../../'); // Sesuaikan jika struktur folder berbeda
-
 
 // Fungsi helper untuk menghapus file gambar
 const deleteImageFile = (filePath) => {
-    if (filePath) {
-        // const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
-        const fileSystemPath = path.join(projectRoot, filePath.startsWith('/') ? filePath.substring(1) : filePath);
-
-
-        fs.unlink(fileSystemPath, (err) => {
-            if (err) {
-                console.error("Gagal menghapus file gambar lama:", err.message);
-            } else {
-                console.log("File gambar lama berhasil dihapus:", fileSystemPath);
-            }
-        });
+    if (!filePath) return;
+    try {
+        const fullPath = path.resolve(__dirname, '../../', filePath.startsWith('/') ? filePath.substring(1) : filePath);
+        if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+            console.log(`File lama berhasil dihapus: ${fullPath}`);
+        }
+    } catch (err) {
+        console.error("Gagal menghapus file gambar:", err.message);
     }
 };
-
 
 // 📥 CREATE activity
 exports.createActivity = async (req, res) => {
@@ -57,6 +51,16 @@ exports.createActivity = async (req, res) => {
             // Jika wajib, berikan error:
             // return res.status(400).json({ message: "Gambar kegiatan wajib diunggah." });
         }
+
+        // 👈 PERBAIKAN: Validasi waktu di backend
+        if (end_date && start_date && end_date === start_date) {
+            if (end_time && start_time && end_time <= start_time) {
+                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
+            }
+        }
+        if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
+            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+        }   
 
         const newActivity = await Activity.create({
             mosque_id: user.mosque_id, // Pastikan user memiliki mosque_id
@@ -131,65 +135,72 @@ exports.updateActivity = async (req, res) => {
         const userId = req.userId;
         const user = await User.findByPk(userId);
         if (!user) {
-            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
             return res.status(404).json({ message: "User not found" });
         }
 
         const activity = await Activity.findOne({
             where: {
                 activities_id: req.params.id,
-                mosque_id: user.mosque_id // Pastikan user.mosque_id ada
+                mosque_id: user.mosque_id
             }
         });
 
         if (!activity) {
-            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
             return res.status(404).json({ message: "Activity not found" });
         }
 
-        const oldImagePath = activity.image; // Simpan path gambar lama
-        let newImagePath = oldImagePath;
-
-        if (req.file) {
-            newImagePath = `/uploads/${req.file.filename}`;
-        }
-
-        // Dapatkan data lain dari body
+        // 👈 PERBAIKAN: Membangun objek update secara dinamis
+        const updateData = {};
         const {
             event_name,
             event_description,
             start_date,
             end_date,
             start_time,
-            end_time
+            end_time,
+            deleteImage,
         } = req.body;
 
+        if (event_name) updateData.event_name = event_name;
+        if (event_description !== undefined) updateData.event_description = event_description;
+        if (start_date) updateData.start_date = start_date;
+        if (end_date) updateData.end_date = end_date;
+        if (start_time) updateData.start_time = start_time;
+        if (end_time) updateData.end_time = end_time;
 
-        await activity.update({
-            event_name: event_name || activity.event_name,
-            image: newImagePath, // Gunakan path baru atau path lama jika tidak ada file baru
-            event_description: event_description || activity.event_description,
-            start_date: start_date || activity.start_date,
-            end_date: end_date || activity.end_date,
-            start_time: start_time || activity.start_time,
-            end_time: end_time || activity.end_time,
-            // user_id tidak diupdate di sini, karena user yg mengupdate mungkin admin, bukan pembuat asli
-            // mosque_id juga tidak diupdate
-        });
+        const finalStartDate = start_date || activity.start_date;
+        const finalEndDate = end_date || activity.end_date;
+        const finalStartTime = start_time || activity.start_time;
+        const finalEndTime = end_time || activity.end_time;
 
-        // Jika ada file baru diupload DAN path gambar lama ada (bukan null/kosong) DAN path baru beda dari path lama
-        if (req.file && oldImagePath && oldImagePath !== newImagePath) {
-            deleteImageFile(oldImagePath);
+        if (finalEndDate && finalStartDate && new Date(finalEndDate) < new Date(finalStartDate)) {
+            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
         }
 
-        res.json({ message: "Activity updated successfully", activity });
+        if (finalEndDate && finalStartDate && new Date(finalEndDate).toISOString().split('T')[0] === new Date(finalStartDate).toISOString().split('T')[0]) {
+            if (finalEndTime && finalStartTime && finalEndTime <= finalStartTime) {
+                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
+            }
+        }
+
+        // Logika untuk menangani gambar
+        if (deleteImage === 'true') {
+            deleteImageFile(activity.image); // Hapus file fisik
+            updateData.image = null; // Siapkan untuk update database menjadi null
+        } else if (req.file) {
+            deleteImageFile(activity.image); // Hapus file lama jika ada yang baru diunggah
+            updateData.image = `/uploads/${req.file.filename}`; // Siapkan path baru
+        }
+        // Jika tidak ada kondisi di atas, 'image' tidak akan ditambahkan ke 'updateData', sehingga tidak diubah.
+
+        await activity.update(updateData);
+
+        res.json({ message: "Activity updated successfully", activity: await activity.reload() });
     } catch (error) {
         console.error("Error updating activity:", error);
-        if (req.file) deleteImageFile(path.join('uploads', req.file.filename)); // Hapus file baru jika ada error saat update DB
-
-        if (error.message && error.message.includes("Hanya file JPEG, JPG, PNG yang diizinkan!")) {
-            return res.status(400).json({ message: error.message });
-        }
+        if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
         res.status(500).json({ message: "Failed to update activity" });
     }
 };

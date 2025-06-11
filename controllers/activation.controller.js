@@ -579,3 +579,135 @@ exports.getExtensionRequestById = async (req, res) => {
     res.status(500).send({ message: error.message });
   }
 };
+
+const toUTCISODateString = (date) => {
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Helper function to format a date object to 'YYYY-MM' using UTC for monthly aggregation.
+ * @param {Date} date - The date object to format.
+ * @returns {string} The formatted month string.
+ */
+const toUTCMonthString = (date) => {
+    const year = date.getUTCFullYear();
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    return `${year}-${month}`;
+};
+
+
+exports.getDashboardData = async (req, res) => {
+  try {
+    const { period = '30d', startDate: queryStartDate, endDate: queryEndDate } = req.query;
+
+    let endDate = new Date();
+    let startDate = new Date();
+    let isMonthly = false;
+
+    // Determine the date range and aggregation level based on the period
+    if (period === '12m') {
+      isMonthly = true;
+      // Set endDate to the end of the current month to get the full month's data
+      endDate.setUTCHours(23, 59, 59, 999);
+      endDate.setUTCDate(new Date(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, 0).getUTCDate());
+
+      // Calculate startDate to be the first day, 11 months ago, creating a 12-month period
+      startDate = new Date(endDate);
+      startDate.setUTCMonth(startDate.getUTCMonth() - 11);
+      startDate.setUTCDate(1);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+    } else if (period === '7d') {
+      startDate.setUTCDate(endDate.getUTCDate() - 6);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(23, 59, 59, 999);
+    } else { // Default to 30d
+      startDate.setUTCDate(endDate.getUTCDate() - 29);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(23, 59, 59, 999);
+    }
+    
+    // Dynamically choose date function based on DB dialect to prevent errors
+    const dialect = db.sequelize.getDialect();
+    const dateFunction = isMonthly
+      ? (
+          dialect === 'mysql'
+            // MySQL-specific function
+            ? [db.sequelize.fn('DATE_FORMAT', db.sequelize.col('approved_at'), '%Y-%m'), 'date']
+            // Standard SQL function for PostgreSQL and others
+            : [db.sequelize.fn('TO_CHAR', db.sequelize.col('approved_at'), 'YYYY-MM'), 'date']
+        )
+      : [db.sequelize.fn('DATE', db.sequelize.col('approved_at')), 'date'];
+
+    const results = await Activation.findAll({
+      attributes: [
+        dateFunction,
+        'activation_type',
+        [db.sequelize.fn('COUNT', db.sequelize.col('activation_id')), 'count'],
+      ],
+      where: {
+        status: 'approved',
+        approved_at: { [Op.between]: [startDate, endDate] },
+      },
+      group: ['date', 'activation_type'],
+      order: [['date', 'ASC']],
+      raw: true,
+    });
+
+    const statsMap = new Map();
+    const labels = [];
+
+    // Initialize the map with all dates/months in the range to ensure no gaps
+    if (isMonthly) {
+        let loopDate = new Date(startDate);
+        // Use a fixed loop for 12 months for reliability
+        for (let i = 0; i < 12; i++) {
+            const formattedMonth = toUTCMonthString(loopDate);
+            labels.push(formattedMonth);
+            statsMap.set(formattedMonth, { activations: 0, extensions: 0 });
+            loopDate.setUTCMonth(loopDate.getUTCMonth() + 1);
+        }
+    } else {
+        let loopDate = new Date(startDate);
+        while (loopDate <= endDate) {
+            const formattedDate = toUTCISODateString(loopDate);
+            labels.push(formattedDate);
+            statsMap.set(formattedDate, { activations: 0, extensions: 0 });
+            loopDate.setUTCDate(loopDate.getUTCDate() + 1);
+        }
+    }
+    
+    // Populate the map with data from the database
+    results.forEach((row) => {
+      // The 'date' field from the query is already formatted as YYYY-MM or YYYY-MM-DD
+      const dateKey = row.date;
+      const count = parseInt(row.count, 10) || 0;
+
+      if (statsMap.has(dateKey)) {
+        const currentStats = statsMap.get(dateKey);
+        if (row.activation_type === 'activation') {
+          currentStats.activations = count;
+        } else if (row.activation_type === 'extension') {
+          currentStats.extensions = count;
+        }
+      }
+    });
+
+    // Convert map values to arrays for the final response
+    const activationData = labels.map(label => statsMap.get(label)?.activations || 0);
+    const extensionData = labels.map(label => statsMap.get(label)?.extensions || 0);
+
+    const responsePayload = {
+      labels,
+      datasets: [
+        { label: 'Aktivasi Baru', data: activationData },
+        { label: 'Perpanjangan', data: extensionData },
+      ],
+    };
+
+    res.status(200).send(responsePayload);
+  } catch (error) {
+    console.error("Dashboard Error:", error);
+    res.status(500).send({ message: 'Failed to fetch dashboard data', error: error.message });
+  }
+};
