@@ -1,9 +1,9 @@
-const { createActivity } = require('../controllers/activity.controller');
-const db = require('../models');
+const { createActivity, getActivities } = require('../controllers/activity.controller');
+const dbActivity = require('../models');
 import * as fs from "fs";
 const path = require('path');
 
-// Mock Sequelize Models
+// Mock Sequelize Models dan fs
 jest.mock('../models');
 jest.mock('fs');
 
@@ -29,7 +29,6 @@ describe('createActivity controller', () => {
             json: jest.fn(),
         };
 
-        // Reset semua mock
         jest.clearAllMocks();
     });
 
@@ -37,13 +36,13 @@ describe('createActivity controller', () => {
         const fakeUser = { id: 1, mosque_id: 10 };
         const fakeActivity = { id: 123, ...req.body };
 
-        db.user.findByPk.mockResolvedValue(fakeUser);
-        db.activity.create.mockResolvedValue(fakeActivity);
+        dbActivity.user.findByPk.mockResolvedValue(fakeUser);
+        dbActivity.activity.create.mockResolvedValue(fakeActivity);
 
         await createActivity(req, res);
 
-        expect(db.user.findByPk).toHaveBeenCalledWith(req.userId);
-        expect(db.activity.create).toHaveBeenCalledWith(expect.objectContaining({
+        expect(dbActivity.user.findByPk).toHaveBeenCalledWith(req.userId);
+        expect(dbActivity.activity.create).toHaveBeenCalledWith(expect.objectContaining({
             mosque_id: fakeUser.mosque_id,
             user_id: req.userId,
             event_name: req.body.event_name,
@@ -54,14 +53,13 @@ describe('createActivity controller', () => {
     });
 
     it('should return 404 if user not found and delete uploaded file', async () => {
-        db.user.findByPk.mockResolvedValue(null);
+        dbActivity.user.findByPk.mockResolvedValue(null);
 
         await createActivity(req, res);
 
         expect(res.status).toHaveBeenCalledWith(404);
         expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
 
-        const deletedPath = path.join('uploads', req.file.filename);
         expect(fs.unlink).toHaveBeenCalledWith(
             expect.stringMatching(/uploads[\\/]+kajian\.jpg/),
             expect.any(Function)
@@ -70,8 +68,8 @@ describe('createActivity controller', () => {
 
     it('should return 500 if Activity.create throws error', async () => {
         const fakeUser = { id: 1, mosque_id: 10 };
-        db.user.findByPk.mockResolvedValue(fakeUser);
-        db.activity.create.mockRejectedValue(new Error('DB error'));
+        dbActivity.user.findByPk.mockResolvedValue(fakeUser);
+        dbActivity.activity.create.mockRejectedValue(new Error('DB error'));
 
         await createActivity(req, res);
 
@@ -82,14 +80,14 @@ describe('createActivity controller', () => {
             expect.stringMatching(/uploads[\\/]+kajian\.jpg/),
             expect.any(Function)
         );
-
     });
 
     it('should return 400 if Multer file type error thrown', async () => {
         const fakeUser = { id: 1, mosque_id: 10 };
-        db.user.findByPk.mockResolvedValue(fakeUser);
         const multerError = new Error("Hanya file JPEG, JPG, PNG yang diizinkan!");
-        db.activity.create.mockImplementation(() => { throw multerError });
+
+        dbActivity.user.findByPk.mockResolvedValue(fakeUser);
+        dbActivity.activity.create.mockImplementation(() => { throw multerError });
 
         await createActivity(req, res);
 
@@ -100,5 +98,58 @@ describe('createActivity controller', () => {
             expect.stringMatching(/uploads[\\/]+kajian\.jpg/),
             expect.any(Function)
         );
+    });
+});
+
+describe('getActivities controller', () => {
+    let req, res;
+
+    beforeEach(() => {
+        req = { userId: 1 };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+
+        jest.clearAllMocks();
+    });
+
+    it('should return 404 if user not found', async () => {
+        dbActivity.user.findByPk.mockResolvedValue(null);
+
+        await getActivities(req, res);
+
+        expect(dbActivity.user.findByPk).toHaveBeenCalledWith(1);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
+    });
+
+    it('should return activities if user exists', async () => {
+        const mockUser = { id: 1, mosque_id: 123 };
+        const mockActivities = [
+            { id: 1, title: 'Kajian', start_date: '2025-01-01' },
+            { id: 2, title: 'Sholat Jumat', start_date: '2024-12-31' }
+        ];
+
+        dbActivity.user.findByPk.mockResolvedValue(mockUser);
+        dbActivity.activity.findAll.mockResolvedValue(mockActivities);
+
+        await getActivities(req, res);
+
+        expect(dbActivity.user.findByPk).toHaveBeenCalledWith(1);
+        expect(dbActivity.activity.findAll).toHaveBeenCalledWith({
+            where: { mosque_id: 123 },
+            order: [['start_date', 'DESC']]
+        });
+        expect(res.json).toHaveBeenCalledWith(mockActivities);
+    });
+
+    it('should return 500 if error occurs', async () => {
+        dbActivity.user.findByPk.mockRejectedValue(new Error('DB Error'));
+
+        await getActivities(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Failed to retrieve activities' });
     });
 });
