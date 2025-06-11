@@ -1,8 +1,4 @@
-const { createContent } = require("../controllers/content.controller");
-const { updateContent } = require("../controllers/content.controller");
-const { deleteContent } = require("../controllers/content.Controller");
-const { getContents } = require("../controllers/content.Controller");
-const { getContentById } = require("../controllers/content.Controller");
+const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews} = require("../controllers/content.controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
@@ -461,3 +457,77 @@ describe("getContentById", () => {
   });
 });
 
+// public recent news
+describe("getPublicRecentNews", () => {
+
+  
+let req, res;
+
+  beforeEach(() => {
+    req = {
+      params: { slug: "masjid-al-ikhlas" },
+      protocol: "http",
+      get: jest.fn().mockReturnValue("localhost:3000"),
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+  });
+
+  it("should return 404 if mosque is not found", async () => {
+    db.mosques.findOne.mockResolvedValue(null);
+
+    await getPublicRecentNews(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Masjid tidak ditemukan." });
+  });
+
+  it("should return empty array if mosque found but no news", async () => {
+    db.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
+    Content.findAll.mockResolvedValue([]);
+
+    await getPublicRecentNews(req, res);
+
+    expect(res.json).toHaveBeenCalledWith([]);
+  });
+
+  it("should return formatted news list", async () => {
+    const mockMosque = { mosque_id: 1 };
+    const mockNews = [
+      {
+        contents_id: 1,
+        image: "news1.jpg",
+        title: "Judul Berita",
+        published_date: new Date("2024-06-10T10:00:00Z"),
+        content_description: "Ini adalah berita terbaru tentang kegiatan masjid yang sangat menarik dan penuh hikmah.",
+      },
+    ];
+
+    db.mosques.findOne.mockResolvedValue(mockMosque);
+    Content.findAll.mockResolvedValue(mockNews);
+
+    await getPublicRecentNews(req, res);
+
+    expect(res.json).toHaveBeenCalledWith([
+      {
+        id: 1,
+        img: "http://localhost:3000/uploads/news1.jpg",
+        title: "Judul Berita",
+        date: "10 Juni 2024",
+        excerpt: expect.stringContaining("Ini adalah berita terbaru"),
+      },
+    ]);
+  });
+
+  it("should return 500 if unexpected error occurs", async () => {
+    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+
+    await getPublicRecentNews(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: "Gagal mengambil berita terbaru" });
+  });
+});
