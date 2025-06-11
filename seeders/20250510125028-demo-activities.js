@@ -16,7 +16,7 @@ module.exports = {
       {
         mosque_id: 1,
         event_name: 'Pengajian Rutin Malam Jumat',
-        image: 'pengajian-jumat.jpg',
+        image: '/uploads/activityImage-1749659671087-996824288.jpg',
         event_description: 'Pengajian rutin yang membahas tafsir Al-Qur\'an bersama Ustadz Ahmad setiap malam Jumat.',
         start_date: new Date('2025-05-09'),
         end_date: new Date('2025-05-09'),
@@ -29,10 +29,10 @@ module.exports = {
       {
         mosque_id: 1,
         event_name: 'Bakti Sosial Masjid Al-Falah',
-        image: 'baksos.jpg',
+        image: '/uploads/activityImage-1749659671087-996824288.jpg',
         event_description: 'Kegiatan sosial membagikan sembako untuk warga sekitar dalam rangka menyambut Idul Fitri.',
-        start_date: new Date('2025-05-15'),
-        end_date: new Date('2025-05-15'),
+        start_date: new Date('2025-06-15'),
+        end_date: new Date('2025-06-15'),
         start_time: '08:00:00',
         end_time: '12:00:00',
         user_id: 1,

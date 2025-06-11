@@ -1,5 +1,7 @@
 'use strict';
 
+const { runRecalculation } = require('../scripts/recalculate-balances');
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   up: async (queryInterface, Sequelize) => {
@@ -101,10 +103,21 @@ module.exports = {
       });
     }
 
-    await queryInterface.bulkInsert('wallet_transactions', data, {});
+    try {
+      // 2. Masukkan semua data transaksi
+      await queryInterface.bulkInsert('wallet_transactions', data, {});
+
+      // 3. Panggil fungsi perhitungan ulang setelah data dimasukkan
+      console.log("Seeding data transaksi selesai. Memulai perhitungan ulang saldo...");
+      await runRecalculation();
+    } catch (error) {
+      console.error("Terjadi error saat seeding atau recalculation:", error);
+      // Lemparkan error agar proses migrasi/seeding gagal dan bisa di-rollback
+      throw error;
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.bulkDelete('wallet_transactions', { user_id: 2}, {});
+    await queryInterface.bulkDelete('wallet_transactions', { user_id: 2 }, {});
   },
 };
