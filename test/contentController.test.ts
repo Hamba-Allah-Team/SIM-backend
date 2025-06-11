@@ -1,4 +1,4 @@
-const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews} = require("../controllers/content.controller");
+const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews, getPublicContents2} = require("../controllers/content.controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
@@ -529,5 +529,82 @@ let req, res;
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: "Gagal mengambil berita terbaru" });
+  });
+});
+
+// get all content for guest
+describe("getPublicContents2", () => {
+  let req, res;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    req = {
+      params: { slug: "masjid-al-ikhlas" },
+      query: { search: "", sortBy: "published_date", order: "ASC" },
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+      json: jest.fn(),
+    };
+
+    // Mocking models
+    db.mosques.findOne = jest.fn();
+    db.contents = {
+      findAndCountAll: jest.fn(),
+    };
+  });
+
+  it("should return contents for the given mosque slug", async () => {
+    const mockMosque = { mosque_id: 1 };
+    const mockContents = {
+      rows: [
+        { contents_id: 1, title: "Judul", content_description: "Deskripsi" },
+      ],
+      count: 1,
+    };
+
+    db.mosques.findOne.mockResolvedValue(mockMosque);
+    db.contents.findAndCountAll.mockResolvedValue(mockContents);
+
+    await getPublicContents2(req, res);
+
+    expect(db.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
+    expect(db.contents.findAndCountAll).toHaveBeenCalled();
+
+    const callArgs = db.contents.findAndCountAll.mock.calls[0][0];
+    expect(callArgs.where.mosque_id).toBe(1);
+    expect(callArgs.order).toEqual([["published_date", "ASC"]]);
+
+    const orConditions = callArgs.where[Op.or];
+    expect(orConditions.length).toBe(2);
+    expect(orConditions[0]).toHaveProperty("title");
+    expect(orConditions[1]).toHaveProperty("content_description");
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      data: mockContents.rows,
+      totalCount: mockContents.count,
+    });
+  });
+
+  it("should return 404 if mosque not found", async () => {
+    db.mosques.findOne.mockResolvedValue(null);
+
+    await getPublicContents2(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Masjid tidak ditemukan." });
+  });
+
+  it("should return 500 on internal error", async () => {
+    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+
+    await getPublicContents2(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith({ message: "Gagal mengambil konten publik." });
   });
 });
