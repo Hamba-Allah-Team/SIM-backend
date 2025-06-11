@@ -51,4 +51,9 @@ module.exports = function (app) {
     verifyToken,
     activationController.getExtensionRequestById
   );
+  app.get(
+    "/api/dashboard/stats",
+    verifyToken,
+    activationController.getDashboardData
+  );
 };
