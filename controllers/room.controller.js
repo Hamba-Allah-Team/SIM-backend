@@ -10,7 +10,7 @@ const isValidImage = (image) => {
 
 exports.createRoom = async (req, res) => {
     try {
-        const {place_name, description, facilities, capacity } = req.body;
+        const { place_name, description, facilities, capacity } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -49,7 +49,7 @@ exports.createRoom = async (req, res) => {
         const newRoom = await Room.create({
             mosque_id,
             place_name,
-            image: req.file ? req.file.filename : null,
+            image: req.file ? req.file.filename : "default_room.png",
             description,
             facilities,
             capacity
@@ -182,13 +182,13 @@ exports.updateRoom = async (req, res) => {
         let image = null;
 
         if (deleteImage) {
-            if (existingRoom.image) {
+            if (existingRoom.image && existingRoom.image !== "default_room.png") {
                 const imagePath = path.join(__dirname, "../uploads", existingRoom.image);
                 if (fs.existsSync(imagePath)) {
                     fs.unlinkSync(imagePath);
                 }
             }
-            image = null;
+            image = "default_room.png";
         } else if (req.file) {
             if (!isValidImage(req.file)) {
                 return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
