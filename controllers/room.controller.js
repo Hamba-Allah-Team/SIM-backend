@@ -312,44 +312,48 @@ exports.getPublicRooms = async (req, res) => {
     }
 }
 
-// exports.getPublicRoomById = async (req, res) => {
-//     try {
-//         const { slug, id } = req.params;
+exports.getPublicRoomById = async (req, res) => {
+    try {
+        const { slug, room_id } = req.params;
 
-//         const mosque = await db.mosques.findOne({
-//             where: {
-//                 slug
-//             }
-//         });
+        const mosque = await db.mosques.findOne({
+            where: {
+                slug
+            }
+        });
 
-//         if (!mosque) {
-//             return res.status(404).send({ message: "Masjid tidak ditemukan." });
-//         }
+        if (!mosque) {
+            return res.status(404).send({ message: "Masjid tidak ditemukan." });
+        }
 
-//         const detailroom = await Room.findOne({
-//             where: {
-//                 room_id: id,
-//                 mosque_id: mosque.mosque_id,
-//                 deleted_at: null
-//             },
-//             includes: [{
-//                 model: db.reservation,
-//                 as: 'reservations',
-//                 attributes: ['reservation_id', 'user_id', 'room_id', 'start_time', 'end_time', 'status']
-//             }]
-//         });
+        const detailroom = await Room.findOne({
+            where: {
+                room_id: room_id,
+                mosque_id: mosque.mosque_id,
+                deleted_at: null
+            },
+            include: [{
+                model: db.reservation,
+                as: 'reservations',
+                attributes: ['title', 'reservation_date', 'start_time', 'end_time', 'status'],
+            }]
+        });
 
-//         if (!detailroom) {
-//             return res.status(404).send({ message: "Ruangan tidak ditemukan." });
-//         }
+        if (!detailroom) {
+            return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+        }
 
-//         res.status(200).send({
-//             message: "Detail ruangan ditemukan.",
-//             data: detailroom
-//         });
+        const cleanDetailRoom = detailroom.toJSON();
 
-//     } catch (error) {
-//         console.error("Error fetching public room by ID:", error);
-//         res.status(500).json({ message: "Terjadi kesalahan saat mengambil detail ruangan" });
-//     }
-// }
+        console.log(cleanDetailRoom);
+
+        res.status(200).send({
+            message: "Detail ruangan ditemukan.",
+            data: cleanDetailRoom
+        });
+
+    } catch (error) {
+        console.error("Error fetching public room by ID:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat mengambil detail ruangan" });
+    }
+}

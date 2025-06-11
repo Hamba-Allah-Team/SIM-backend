@@ -20,5 +20,5 @@ module.exports = function (app) {
     
     // Room routes guest
     app.get("/api/guest/rooms/:slug", roomController.getPublicRooms); // Menampilkan daftar ruangan untuk tamu
-    // app.get("/api/guest/rooms/:slug/:id", roomController.getPublicRoomById); // Menampilkan detail ruangan untuk tamu berdasarkan ID
+    app.get("/api/guest/rooms/:slug/:room_id", roomController.getPublicRoomById); // Menampilkan detail ruangan untuk tamu berdasarkan ID
 }

@@ -19,5 +19,5 @@ module.exports = function (app) {
     app.delete("/api/reservations/:id", verifyToken, reservationController.deleteReservation); // Menghapus reservasi, memerlukan verifikasi token
 
     // Reservation routes guest
-    // app.post("/api/reservations/guest", reservationController.createPublicReservation);
+    app.post("/api/reservations/guest", reservationController.createPublicReservation);
 }

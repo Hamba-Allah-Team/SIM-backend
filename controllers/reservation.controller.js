@@ -16,6 +16,10 @@ exports.createReservation = async (req, res) => {
             return res.status(403).send({ message: "Akses ditolak. Hanya Admin yang bisa mengakses" });
         }
 
+        if (!room_id || !title || !name || !reservation_date || !start_time || !end_time) {
+            return res.status(400).send({ message: "Semua field wajib diisi." });
+        }
+
         const mosque_id = user.mosque_id;
 
         const start = new Date(`${reservation_date}T${start_time}`);
@@ -53,6 +57,11 @@ exports.createReservation = async (req, res) => {
                     {
                         end_time: {
                             [Op.gt]: start_time
+                        }
+                    },
+                    {
+                        status: {
+                            [Op.in]: ['pending', 'approved']
                         }
                     }
                 ]
@@ -364,5 +373,61 @@ exports.deleteReservation = async (req, res) => {
     } catch (error) {
         console.error("Error deleting reservation:", error);
         res.status(500).json({ message: "Terjadi kesalahan saat menghapus reservasi" });
+    }
+}
+
+exports.createPublicReservation = async (req, res) => {
+    try {
+        const { room_id, title, name, phone_number, description, reservation_date, start_time, end_time, slug } = req.body;
+        const mosque = await db.mosques.findOne({ where: { slug } });
+        if (!mosque) {
+            return res.status(404).send({ message: "Masjid tidak ditemukan." });
+        }
+
+        const mosque_id = mosque.mosque_id;
+
+        const start = new Date(`${reservation_date}T${start_time}`);
+        const end = new Date(`${reservation_date}T${end_time}`);
+
+        if (phone_number && !/^\+?[0-9]+$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon hanya boleh berisi angka dan opsional tanda plus di depan." });
+        }
+
+        if (phone_number && !/^\+?\d{10,15}$/.test(phone_number)) {
+            return res.status(400).json({ message: "Nomor telepon harus terdiri dari 10 hingga 15 digit." });
+        }
+
+        if (start >= end) {
+            return res.status(400).json({ message: "Waktu mulai harus lebih awal dari waktu selesai." });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if(new Date(reservation_date) < today) {
+            return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
+        }
+
+        const newReservation = await Reservation.create({
+            mosque_id,
+            room_id,
+            title,
+            name,
+            phone_number,
+            description,
+            reservation_date,
+            start_time,
+            end_time,
+            admin_id: null,
+            status: 'pending',
+        });
+
+        res.status(201).send({
+            message: "Reservasi berhasil dibuat.",
+            data: newReservation
+        });
+
+    } catch (error) {
+        console.error("Error creating public reservation:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat membuat reservasi" });
     }
 }
