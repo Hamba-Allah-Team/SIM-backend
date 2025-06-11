@@ -35,8 +35,6 @@ jobs:
         # Dapatkan nama branch saat ini untuk tag image Docker
         IMAGE_BRANCH=${{ github.ref_name }}
         
-        cd SIM-backend
-        
         docker build -t ${{ secrets.DOCKER_USERNAME }}/sim-backend:$IMAGE_BRANCH .
         docker push ${{ secrets.DOCKER_USERNAME }}/sim-backend:$IMAGE_BRANCH
         
