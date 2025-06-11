@@ -2,6 +2,7 @@ const { createContent } = require("../controllers/content.controller");
 const { updateContent } = require("../controllers/content.controller");
 const { deleteContent } = require("../controllers/content.Controller");
 const { getContents } = require("../controllers/content.Controller");
+const { getContentById } = require("../controllers/content.Controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
@@ -387,6 +388,76 @@ describe("getContents", () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.send).toHaveBeenCalledWith({ message: "Terjadi kesalahan saat mengambil konten." });
+  });
+});
+
+// get content by id
+
+let req, res;
+
+beforeEach(() => {
+  req = {
+    params: { id: "1" },
+    userId: 1,
+  };
+
+  res = {
+    status: jest.fn().mockReturnThis(),
+    send: jest.fn(),
+  };
+});
+
+describe("getContentById", () => {
+  it("should return 404 if user is not found", async () => {
+    db.user.findByPk.mockResolvedValue(null);
+
+    await getContentById(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ message: "Pengguna tidak ditemukan." });
+  });
+
+  it("should return 404 if content is not found", async () => {
+    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
+    Content.findOne.mockResolvedValue(null);
+
+    await getContentById(req, res);
+
+    expect(Content.findOne).toHaveBeenCalledWith({
+      where: {
+        contents_id: "1",
+        mosque_id: 2,
+      },
+    });
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ message: "Konten tidak ditemukan." });
+  });
+
+  it("should return content if found", async () => {
+    const mockArticle = { id: 1, contents_id: "1", mosque_id: 2, title: "Test" };
+
+    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
+    Content.findOne.mockResolvedValue(mockArticle);
+
+    await getContentById(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      message: "Konten ditemukan.",
+      data: mockArticle,
+    });
+  });
+
+  it("should return 500 if unexpected error occurs", async () => {
+    db.user.findByPk.mockRejectedValue(new Error("Unexpected"));
+
+    await getContentById(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith({
+      message: "Terjadi kesalahan saat mengambil konten.",
+    });
   });
 });
 
