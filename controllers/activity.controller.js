@@ -52,6 +52,16 @@ exports.createActivity = async (req, res) => {
             // return res.status(400).json({ message: "Gambar kegiatan wajib diunggah." });
         }
 
+        // 👈 PERBAIKAN: Validasi waktu di backend
+        if (end_date && start_date && end_date === start_date) {
+            if (end_time && start_time && end_time <= start_time) {
+                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
+            }
+        }
+        if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
+            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+        }   
+
         const newActivity = await Activity.create({
             mosque_id: user.mosque_id, // Pastikan user memiliki mosque_id
             user_id: userId,
@@ -159,6 +169,21 @@ exports.updateActivity = async (req, res) => {
         if (end_date) updateData.end_date = end_date;
         if (start_time) updateData.start_time = start_time;
         if (end_time) updateData.end_time = end_time;
+
+        const finalStartDate = start_date || activity.start_date;
+        const finalEndDate = end_date || activity.end_date;
+        const finalStartTime = start_time || activity.start_time;
+        const finalEndTime = end_time || activity.end_time;
+
+        if (finalEndDate && finalStartDate && new Date(finalEndDate) < new Date(finalStartDate)) {
+            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+        }
+
+        if (finalEndDate && finalStartDate && new Date(finalEndDate).toISOString().split('T')[0] === new Date(finalStartDate).toISOString().split('T')[0]) {
+            if (finalEndTime && finalStartTime && finalEndTime <= finalStartTime) {
+                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
+            }
+        }
 
         // Logika untuk menangani gambar
         if (deleteImage === 'true') {

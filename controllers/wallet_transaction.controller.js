@@ -465,6 +465,15 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
             attributes: ['wallet_id', 'wallet_name', 'wallet_type'],
         });
 
+        if (wallets.length === 0) {
+            return res.json({
+                total_income: 0,
+                total_expense: 0,
+                net_balance: 0,
+                wallet_balances: []
+            });
+        }
+
         const walletIds = wallets.map(w => w.wallet_id);
 
         const [result] = await db.sequelize.query(`
@@ -1001,6 +1010,7 @@ exports.getPeriodicReportExport = async (req, res) => {
             return res.status(400).json({ message: "Parameter tidak lengkap." });
         }
 
+        // Tentukan Tanggal Mulai dan Selesai Periode Laporan
         const startDate = new Date(Date.UTC(year, period === 'monthly' ? month - 1 : 0, 1));
         const endDate = new Date(Date.UTC(year, period === 'monthly' ? month : 12, 0, 23, 59, 59, 999));
 
@@ -1010,6 +1020,7 @@ exports.getPeriodicReportExport = async (req, res) => {
         }
         const mosqueId = user.mosque_id;
         const mosqueName = user.mosque.name;
+        const mosqueAddress = user.mosque.address;
 
         const wallets = await Wallets.findAll({ where: { mosque_id: mosqueId } });
         const walletIds = wallets.map(w => w.wallet_id);
@@ -1018,7 +1029,7 @@ exports.getPeriodicReportExport = async (req, res) => {
             return res.status(404).json({ message: "Tidak ada dompet yang ditemukan untuk masjid ini." });
         }
 
-        // Hitung Saldo Awal yang Benar
+        // 1. Hitung Saldo Awal (Akumulasi semua transaksi sebelum periode)
         const transactionsBefore = await WalletTransactions.findAll({
             where: {
                 wallet_id: { [Op.in]: walletIds },
@@ -1037,11 +1048,12 @@ exports.getPeriodicReportExport = async (req, res) => {
             }
         });
 
-        // Ambil Semua Transaksi di Dalam Periode Laporan
+        // 2. Ambil Semua Transaksi di Dalam Periode Laporan
         const transactionsInPeriod = await WalletTransactions.findAll({
             where: {
                 wallet_id: { [Op.in]: walletIds },
                 transaction_date: { [Op.between]: [startDate, endDate] },
+                transaction_type: { [Op.in]: ['income', 'expense'] } // Hanya pemasukan & pengeluaran operasional
             },
             include: [
                 { model: Wallets, as: 'wallet', attributes: ['wallet_name'] },
@@ -1050,7 +1062,7 @@ exports.getPeriodicReportExport = async (req, res) => {
             order: [['transaction_date', 'ASC'], ['created_at', 'ASC']]
         });
 
-        // 👈 PERBAIKAN: Pisahkan dan kelompokkan transaksi berdasarkan kategori
+        // 3. Kelompokkan Pemasukan & Pengeluaran berdasarkan Kategori
         let totalIncome = 0;
         let totalExpense = 0;
         const groupedIncome = {};
@@ -1059,7 +1071,6 @@ exports.getPeriodicReportExport = async (req, res) => {
         transactionsInPeriod.forEach(tx => {
             const amount = Number(tx.amount);
             const category = tx.category?.category_name || 'Lain-lain';
-
             const transactionData = {
                 date: tx.transaction_date,
                 description: tx.source_or_usage || tx.category?.category_name || 'Transaksi',
@@ -1069,59 +1080,56 @@ exports.getPeriodicReportExport = async (req, res) => {
 
             if (tx.transaction_type === 'income') {
                 totalIncome += amount;
-                if (!groupedIncome[category]) groupedIncome[category] = [];
-                groupedIncome[category].push(transactionData);
+                if (!groupedIncome[category]) groupedIncome[category] = { transactions: [], total: 0 };
+                groupedIncome[category].transactions.push(transactionData);
+                groupedIncome[category].total += amount;
             } else if (tx.transaction_type === 'expense') {
                 totalExpense += amount;
-                if (!groupedExpense[category]) groupedExpense[category] = [];
-                groupedExpense[category].push(transactionData);
+                if (!groupedExpense[category]) groupedExpense[category] = { transactions: [], total: 0 };
+                groupedExpense[category].transactions.push(transactionData);
+                groupedExpense[category].total += amount;
             }
         });
 
         const saldoAkhir = saldoAwal + totalIncome - totalExpense;
 
-        // 👈 PERBAIKAN: Format PDF baru yang lebih terstruktur
+        // 4. Hitung Distribusi Saldo Akhir per Dompet
+        const walletBalances = [];
+        for (const wallet of wallets) {
+            const balance = await getCurrentWalletBalance(wallet.wallet_id); // Gunakan fungsi helper Anda
+            walletBalances.push({ name: wallet.wallet_name, balance: balance });
+        }
+
+        // 5. Generate PDF dengan Format Baru
         if (format === 'pdf') {
             moment.locale('id');
             const periodString = period === 'monthly' ? moment(startDate).format('MMMM YYYY') : `Tahun ${year}`;
 
-            // Helper untuk membuat tabel kategori
             const createCategoryTable = (title, data) => {
-                const body = [];
-                body.push([{ text: 'Tanggal', style: 'tableHeader' }, { text: 'Keterangan', style: 'tableHeader' }, { text: 'Jumlah (Rp)', style: 'tableHeader', alignment: 'right' }]);
-
-                for (const category in data) {
-                    body.push([{ text: category, bold: true, colSpan: 3, margin: [0, 5, 0, 2], fillColor: '#eeeeee' }, {}, {}]);
-                    let categoryTotal = 0;
-                    data[category].forEach(tx => {
-                        categoryTotal += tx.amount;
-                        body.push([
-                            moment(tx.date).format("DD/MM/YYYY"),
-                            `${tx.description} (${tx.wallet})`,
-                            { text: tx.amount.toLocaleString('id-ID'), alignment: 'right' }
-                        ]);
-                    });
-                    body.push([{ text: 'Subtotal Kategori', bold: true, alignment: 'right', colSpan: 2, margin: [0, 2, 0, 5] }, {}, { text: categoryTotal.toLocaleString('id-ID'), bold: true, alignment: 'right', margin: [0, 2, 0, 5] }]);
-                }
-
-                return [
-                    { text: title, style: 'subheader' },
-                    {
-                        style: 'transactionsTable',
-                        table: {
-                            headerRows: 1,
-                            widths: ['auto', '*', 'auto'],
-                            body: body
-                        },
-                        layout: 'lightHorizontalLines'
+                const body = [[{ text: 'Tanggal', style: 'tableHeader' }, { text: 'Keterangan', style: 'tableHeader' }, { text: 'Jumlah (Rp)', style: 'tableHeader', alignment: 'right' }]];
+                if (Object.keys(data).length === 0) {
+                    body.push([{ text: 'Tidak ada transaksi pada periode ini.', colSpan: 3, alignment: 'center', italics: true, margin: [0, 10] }, {}, {}]);
+                } else {
+                    for (const category in data) {
+                        body.push([{ text: category, bold: true, colSpan: 3, margin: [0, 5, 0, 2], fillColor: '#eeeeee' }, {}, {}]);
+                        data[category].transactions.forEach(tx => {
+                            body.push([
+                                moment(tx.date).format("DD/MM/YY"),
+                                `${tx.description} (${tx.wallet})`,
+                                { text: tx.amount.toLocaleString('id-ID'), alignment: 'right' }
+                            ]);
+                        });
+                        body.push([{ text: 'Subtotal Kategori', bold: true, alignment: 'right', colSpan: 2, margin: [0, 2, 0, 5] }, {}, { text: data[category].total.toLocaleString('id-ID'), bold: true, alignment: 'right', margin: [0, 2, 0, 5] }]);
                     }
-                ];
+                }
+                return [{ text: title, style: 'subheader' }, { style: 'transactionsTable', table: { headerRows: 1, widths: ['auto', '*', 'auto'], body: body }, layout: 'lightHorizontalLines' }];
             };
 
             const docDefinition = {
                 content: [
-                    { text: `LAPORAN KEUANGAN`, style: "header" },
+                    { text: `LAPORAN ARUS KAS`, style: "header" },
                     { text: `${mosqueName.toUpperCase()}`, style: "subheader" },
+                    { text: `${mosqueAddress || ''}`, alignment: "center" },
                     { text: `Periode: ${periodString}`, alignment: "center", margin: [0, 0, 0, 20] },
                     {
                         style: 'summaryTable',
@@ -1133,16 +1141,42 @@ exports.getPeriodicReportExport = async (req, res) => {
                                 ['Total Pengeluaran', { text: `Rp ${totalExpense.toLocaleString('id-ID')}`, alignment: 'right', color: 'red' }],
                                 [{ text: 'Saldo Akhir Periode', bold: true, fontSize: 12 }, { text: `Rp ${saldoAkhir.toLocaleString('id-ID')}`, bold: true, alignment: 'right', fontSize: 12 }],
                             ]
-                        },
-                        layout: 'noBorders'
+                        }, layout: 'noBorders'
                     },
-                    ...createCategoryTable('Rincian Pemasukan', groupedIncome),
-                    ...createCategoryTable('Rincian Pengeluaran', groupedExpense),
-                    { text: `\n\nDicetak pada: ${moment().format("dddd, DD MMMM YYYY HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
+                    ...createCategoryTable('RINCIAN PEMASUKAN', groupedIncome),
+                    ...createCategoryTable('RINCIAN PENGELUARAN', groupedExpense),
+                    { text: 'POSISI KAS & BANK (SALDO AKHIR)', style: 'subheader' },
+                    {
+                        style: 'transactionsTable',
+                        table: {
+                            widths: ['*', 'auto'],
+                            body: [
+                                [{ text: 'Nama Dompet', style: 'tableHeader' }, { text: 'Saldo (Rp)', style: 'tableHeader', alignment: 'right' }],
+                                ...walletBalances.map(w => [w.name, { text: w.balance.toLocaleString('id-ID'), alignment: 'right' }]),
+                                [{ text: 'Total Saldo Akhir', bold: true }, { text: saldoAkhir.toLocaleString('id-ID'), bold: true, alignment: 'right' }]
+                            ]
+                        }, layout: 'lightHorizontalLines'
+                    },
+                    {
+                        columns: [
+                            {
+                                width: '*',
+                                text: `\n\nMengetahui,\n\n\n\n\n(.........................)\nKetua DKM`,
+                                alignment: 'center'
+                            },
+                            {
+                                width: '*',
+                                text: `Malang, ${moment().format("DD MMMM YYYY")}\nDisiapkan oleh,\n\n\n\n\n( ${user.name} )\nBendahara`,
+                                alignment: 'center'
+                            }
+                        ],
+                        margin: [0, 50, 0, 0]
+                    },
+                    { text: `\n\nLaporan ini dicetak secara otomatis oleh sistem SIMA pada: ${moment().format("dddd, DD MMMM YYYY, HH:mm")}`, alignment: "right", fontSize: 9, italics: true }
                 ],
                 styles: {
                     header: { fontSize: 16, bold: true, alignment: "center" },
-                    subheader: { fontSize: 14, bold: true, margin: [0, 15, 0, 5] },
+                    subheader: { fontSize: 14, bold: true, margin: [0, 15, 0, 5], alignment: 'center' },
                     summaryTable: { margin: [0, 0, 0, 15] },
                     transactionsTable: { margin: [0, 5, 0, 15] },
                     tableHeader: { bold: true, fontSize: 10, color: 'black' }
