@@ -27,8 +27,6 @@ module.exports = function (app) {
     app.delete("/api/activities/:id", verifyToken, activityController.deleteActivity);
 
     // 📌 Guest Activity routes (tanpa autentikasi)
-    app.get("/api/activities/guest/:mosque_id", activityController.getPublicActivities);
-    app.get("/api/activities/guest/:mosque_id/:id", activityController.getPublicActivityById);
     app.get("/api/public/activities/upcoming/:slug", activityController.getUpcomingActivities);
     app.get("/api/public/activities/all/:slug", activityController.getAllUpcomingActivities);
     app.get("/api/public/activities/past/:slug", activityController.getPastActivities);

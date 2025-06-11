@@ -7,11 +7,13 @@ const Mosque = db.mosques;
 const { format } = require('date-fns'); // 👈 Impor date-fns
 const { id } = require('date-fns/locale'); // 👈 Impor locale Indonesia
 const { Op } = require("sequelize");
+const projectRoot = path.resolve(__dirname, '../../'); // Sesuaikan jika struktur folder berbeda
+
 
 // Fungsi helper untuk menghapus file gambar
 const deleteImageFile = (filePath) => {
     if (filePath) {
-        const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
+        // const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
         const fileSystemPath = path.join(projectRoot, filePath.startsWith('/') ? filePath.substring(1) : filePath);
 
 
