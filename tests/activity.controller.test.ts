@@ -1,4 +1,4 @@
-const { createActivity, getActivities } = require('../controllers/activity.controller');
+const { createActivity, getActivities, getActivityById } = require('../controllers/activity.controller');
 const dbActivity = require('../models');
 import * as fs from "fs";
 const path = require('path');
@@ -8,6 +8,9 @@ jest.mock('../models');
 jest.mock('fs');
 
 describe('createActivity controller', () => {
+
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    
     let req, res;
 
     beforeEach(() => {
@@ -151,5 +154,81 @@ describe('getActivities controller', () => {
 
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ message: 'Failed to retrieve activities' });
+    });
+});
+
+// get activity by id for admin
+describe('getActivityById controller', () => {
+    let req, res;
+
+    beforeEach(() => {
+        req = {
+            userId: 1,
+            params: { id: 101 }
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+
+        jest.clearAllMocks();
+    });
+
+    it('should return 404 if user not found', async () => {
+        dbActivity.user.findByPk.mockResolvedValue(null);
+
+        await getActivityById(req, res);
+
+        expect(dbActivity.user.findByPk).toHaveBeenCalledWith(1);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
+    });
+
+    it('should return 404 if activity not found', async () => {
+        const mockUser = { id: 1, mosque_id: 10 };
+        dbActivity.user.findByPk.mockResolvedValue(mockUser);
+        dbActivity.activity.findOne.mockResolvedValue(null);
+
+        await getActivityById(req, res);
+
+        expect(dbActivity.activity.findOne).toHaveBeenCalledWith({
+            where: {
+                activities_id: 101,
+                mosque_id: mockUser.mosque_id
+            }
+        });
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Activity not found' });
+    });
+
+    it('should return the activity if found', async () => {
+        const mockUser = { id: 1, mosque_id: 10 };
+        const mockActivity = {
+            activities_id: 101,
+            event_name: 'Kajian Subuh',
+            mosque_id: 10
+        };
+
+        dbActivity.user.findByPk.mockResolvedValue(mockUser);
+        dbActivity.activity.findOne.mockResolvedValue(mockActivity);
+
+        await getActivityById(req, res);
+
+        expect(dbActivity.activity.findOne).toHaveBeenCalledWith({
+            where: {
+                activities_id: 101,
+                mosque_id: mockUser.mosque_id
+            }
+        });
+        expect(res.json).toHaveBeenCalledWith(mockActivity);
+    });
+
+    it('should return 500 if error occurs', async () => {
+        dbActivity.user.findByPk.mockRejectedValue(new Error('DB Error'));
+
+        await getActivityById(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Failed to retrieve activity' });
     });
 });
