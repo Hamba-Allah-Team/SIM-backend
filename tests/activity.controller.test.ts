@@ -1,10 +1,20 @@
-const { createActivity, getActivities, getActivityById, deleteActivity } = require('../controllers/activity.controller');
+const { createActivity, getActivities, getActivityById, deleteActivity, getUpcomingActivities } = require('../controllers/activity.controller');
 const dbActivity = require('../models');
 import * as fs from "fs";
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale'; 
 const path = require('path');
 
 // Mock Sequelize Models dan fs
-jest.mock('../models');
+jest.mock('../models', () => ({
+  Mosque: {
+    findOne: jest.fn()
+  },
+  Activity: {
+    findAll: jest.fn()
+  }
+}));
+
 jest.mock('fs');
 
 describe('createActivity controller', () => {
@@ -311,5 +321,86 @@ describe('deleteActivity controller', () => {
 
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ message: 'Failed to delete activity' });
+    });
+});
+
+//  get upcoming activity
+describe('getUpcomingActivities', () => {
+    const req = {
+        params: { slug: 'masjid-al-hikmah' },
+        protocol: 'http',
+        get: jest.fn().mockReturnValue('localhost:3000')
+    };
+
+    let res;
+
+    beforeEach(() => {
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+        jest.clearAllMocks();
+    });
+
+    it('should return 404 if mosque with slug not found', async () => {
+        dbActivity.mosque.findOne.mockResolvedValue(null);
+
+        await getUpcomingActivities(req, res);
+
+        expect(dbActivity.mosque.findOne).toHaveBeenCalledWith({
+            where: { slug: 'masjid-al-hikmah' }
+        });
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Masjid tidak ditemukan' });
+    });
+
+    it('should return upcoming activities if found', async () => {
+        const mockMosque = { id: 10 };
+        const mockActivities = [
+            {
+                activities_id: 1,
+                event_name: 'Kajian Akbar',
+                start_date: '2025-06-20',
+                end_date: '2025-06-20',
+                start_time: '18:00',
+                end_time: '20:00',
+                image: '/uploads/kajian.jpg'
+            }
+        ];
+
+        dbActivity.mosque.findOne.mockResolvedValue(mockMosque);
+        dbActivity.activity.findAll.mockResolvedValue(mockActivities);
+
+        await getUpcomingActivities(req, res);
+
+        expect(dbActivity.mosque.findOne).toHaveBeenCalledWith({
+            where: { slug: 'masjid-al-hikmah' }
+        });
+        expect(dbActivity.activity.findAll).toHaveBeenCalledWith({
+            where: {
+                mosque_id: mockMosque.id,
+                start_date: expect.any(Object) // tanggal sekarang
+            },
+            order: [['start_date', 'ASC']]
+        });
+
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(
+            mockActivities.map((act) => ({
+                ...act,
+                image: `http://localhost:3000${act.image}`,
+                start_date: format(new Date(act.start_date), 'EEEE, dd MMMM yyyy', { locale: id }),
+                end_date: format(new Date(act.end_date), 'EEEE, dd MMMM yyyy', { locale: id })
+            }))
+        );
+    });
+
+    it('should return 500 if error occurs', async () => {
+        dbActivity.mosque.findOne.mockRejectedValue(new Error('DB Error'));
+
+        await getUpcomingActivities(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Failed to get upcoming activities' });
     });
 });
