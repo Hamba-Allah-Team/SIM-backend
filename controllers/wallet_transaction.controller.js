@@ -16,7 +16,7 @@ const { Op } = require("sequelize");
 const WalletTransactions = db.wallet_transaction;
 const Wallets = db.wallet;
 const TransactionCategory = db.transaction_category;
-const { recalculateWalletBalances } = require("../utils/finance");
+const { recalculateWalletBalances, getCurrentWalletBalance } = require("../utils/finance");
 
 exports.createTransaction = async (req, res) => {
     try {
@@ -51,6 +51,13 @@ exports.createTransaction = async (req, res) => {
             return res.status(400).json({
                 message: `Tipe kategori (${category.category_type}) tidak sesuai dengan tipe transaksi (${transaction_type}).`
             });
+        }
+
+        if (transaction_type === 'expense') {
+            const currentBalance = await getCurrentWalletBalance(wallet_id);
+            if (currentBalance < amountNumber) {
+                return res.status(400).json({ message: `Saldo dompet tidak mencukupi. Saldo saat ini: Rp ${currentBalance.toLocaleString('id-ID')}` });
+            }
         }
 
         const transaction = await WalletTransactions.create({
@@ -162,6 +169,11 @@ exports.transferBetweenWallets = async (req, res) => {
             return res.status(404).json({ message: "Wallet sumber atau tujuan tidak ditemukan." });
         }
 
+        const currentBalance = await getCurrentWalletBalance(from_wallet_id);
+        if (currentBalance < amountNumber) {
+            return res.status(400).json({ message: `Saldo dompet sumber tidak mencukupi. Saldo saat ini: Rp ${currentBalance.toLocaleString('id-ID')}` });
+        }
+
         // Buat transaksi transfer_out di wallet sumber
         const debitTransaction = await WalletTransactions.create({
             wallet_id: from_wallet_id,
@@ -223,6 +235,7 @@ exports.getTransactionById = async (req, res) => {
 };
 
 exports.updateTransaction = async (req, res) => {
+    const t = await db.sequelize.transaction();
     try {
         const id = req.params.transactionId;
         const {
@@ -237,10 +250,12 @@ exports.updateTransaction = async (req, res) => {
         const transaction = await WalletTransactions.findByPk(id);
 
         if (!transaction) {
+            await t.rollback();
             return res.status(404).json({ message: "Transaction not found" });
         }
 
         const oldWalletId = transaction.wallet_id;
+        const newWalletId = wallet_id ? Number(wallet_id) : oldWalletId;
 
         // 👉 Validasi category_id (jika diberikan)
         if (category_id || transaction_type) {
@@ -261,20 +276,39 @@ exports.updateTransaction = async (req, res) => {
 
         // Update transaksi
         await transaction.update({
-            amount,
+            amount: Number(amount),
             transaction_type,
             transaction_date,
             source_or_usage,
             category_id,
-            ...(wallet_id !== undefined ? { wallet_id } : {})
-        });
+            wallet_id: newWalletId,
+        }, { transaction: t });
 
         // Recalculate balance di wallet lama dan wallet baru (jika berpindah)
-        await recalculateWalletBalances(oldWalletId);
-        if (wallet_id && wallet_id !== oldWalletId) {
-            await recalculateWalletBalances(wallet_id);
+        await recalculateWalletBalances(oldWalletId, { transaction: t });
+        if (newWalletId !== oldWalletId) {
+            await recalculateWalletBalances(newWalletId, { transaction: t });
         }
 
+        // 4. Periksa saldo akhir dari semua dompet yang terlibat
+        const fromWallet = await Wallets.findByPk(oldWalletId, { transaction: t });
+        const fromWalletBalance = await getCurrentWalletBalance(fromWallet.wallet_id, { transaction: t });
+        if (fromWalletBalance < 0) {
+            await t.rollback();
+            return res.status(400).json({ message: `Gagal, update menyebabkan saldo ${fromWallet.wallet_name} menjadi negatif.` });
+        }
+
+        if (newWalletId !== oldWalletId) {
+            const toWallet = await Wallets.findByPk(newWalletId, { transaction: t });
+            const toWalletBalance = await getCurrentWalletBalance(toWallet.wallet_id, { transaction: t });
+            if (toWalletBalance < 0) {
+                await t.rollback();
+                return res.status(400).json({ message: `Gagal, update menyebabkan saldo ${toWallet.wallet_name} menjadi negatif.` });
+            }
+        }
+
+        // 5. Jika semua valid, simpan perubahan
+        await t.commit();
         res.json({ message: "Transaction and balances updated successfully" });
     } catch (error) {
         console.error("Error updating transaction:", error);
