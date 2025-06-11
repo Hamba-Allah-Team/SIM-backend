@@ -465,6 +465,15 @@ exports.getFinancialSummaryForDashboard = async (req, res) => {
             attributes: ['wallet_id', 'wallet_name', 'wallet_type'],
         });
 
+        if (wallets.length === 0) {
+            return res.json({
+                total_income: 0,
+                total_expense: 0,
+                net_balance: 0,
+                wallet_balances: []
+            });
+        }
+
         const walletIds = wallets.map(w => w.wallet_id);
 
         const [result] = await db.sequelize.query(`
