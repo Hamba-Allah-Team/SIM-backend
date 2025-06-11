@@ -15,8 +15,9 @@ module.exports = function (app) {
     app.get("/api/reservations", verifyToken, reservationController.getReservations); // Menampilkan daftar reservasi (dengan sorting dan search)
     app.get("/api/reservations/:id", verifyToken, reservationController.getReservationById); // Menampilkan detail reservasi berdasarkan ID 
     app.put("/api/reservations/:id", verifyToken, reservationController.updateReservation); // Mengedit reservasi, memerlukan verifikasi token
+    app.put("/api/reservations/:id/:status", verifyToken, reservationController.approveReservation); // Mengupdate status reservasi, memerlukan verifikasi token
     app.delete("/api/reservations/:id", verifyToken, reservationController.deleteReservation); // Menghapus reservasi, memerlukan verifikasi token
 
     // Reservation routes guest
-    // app.post("/api/reservations/guest", reservationController.createPublicReservation);
+    app.post("/api/reservations/guest", reservationController.createPublicReservation);
 }

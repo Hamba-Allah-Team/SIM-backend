@@ -1,4 +1,5 @@
 const { verifyToken } = require('../middleware/auth.middleware');
+const upload = require('../middleware/upload.middleware');
 const roomController = require('../controllers/room.controller');
 
 module.exports = function (app) {
@@ -11,13 +12,13 @@ module.exports = function (app) {
     });
 
     // Room routes admin
-    app.post("/api/rooms", verifyToken, roomController.createRoom); // Menambah ruangan, memerlukan verifikasi token
+    app.post("/api/rooms", verifyToken, upload.single("image"), roomController.createRoom); // Menambah ruangan, memerlukan verifikasi token	
     app.get("/api/rooms", verifyToken, roomController.getRooms); // Menampilkan daftar ruangan (dengan sorting dan search)
     app.get("/api/rooms/:id", verifyToken, roomController.getRoomById); // Menampilkan detail ruangan berdasarkan ID 
-    app.put("/api/rooms/:id", verifyToken, roomController.updateRoom); // Mengedit ruangan, memerlukan verifikasi token
+    app.put("/api/rooms/:id", verifyToken, upload.single("image"), roomController.updateRoom); // Mengedit ruangan, memerlukan verifikasi token
     app.delete("/api/rooms/:id", verifyToken, roomController.deleteRoom); // Menghapus ruangan, memerlukan verifikasi token
     
     // Room routes guest
-    // app.get("/api/rooms/guest/:mosque_id", roomController.getPublicRoom); // Ambil semua ruangan publik berdasarkan mosque_id
-    // app.get("/api/rooms/guest/:mosque_id/:id", roomController.getPublicRoomById); // Ambil 1 ruangan publik berdasarkan mosque_id dan id
+    app.get("/api/guest/rooms/:slug", roomController.getPublicRooms); // Menampilkan daftar ruangan untuk tamu
+    app.get("/api/guest/rooms/:slug/:room_id", roomController.getPublicRoomById); // Menampilkan detail ruangan untuk tamu berdasarkan ID
 }

@@ -1,5 +1,6 @@
 require("dotenv").config();
 require("./jobs/cronJob");
+require("./jobs/reservation-status-updater");
 const express = require("express");
 const cors = require("cors");
 
