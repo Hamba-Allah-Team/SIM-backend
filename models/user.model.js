@@ -67,7 +67,7 @@ module.exports = (sequelize, Sequelize) => {
       allowNull: true,
     },
   }, {
-    timestamps: false,
+    timestamps: true,
     underscored: true
   });
 

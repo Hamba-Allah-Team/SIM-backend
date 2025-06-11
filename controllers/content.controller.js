@@ -73,7 +73,7 @@ exports.updateContent = async (req, res) => {
       return res.status(400).send({ message: "Judul, tanggal publikasi, dan jenis konten wajib diisi." });
     }
 
-    const article = await Content.findByPk(id);
+    const article = await db.contents.findByPk(id);
     if (!article) return res.status(404).send({ message: "Konten tidak ditemukan." });
 
     if (article.mosque_id !== mosque_id) {
@@ -350,7 +350,7 @@ exports.getPublicContents2 = async (req, res) => {
       return res.status(404).json({ message: "Masjid tidak ditemukan." });
     }
 
-    const contents = await Content.findAndCountAll({
+    const contents = await db.contents.findAndCountAll({
       where: {
         mosque_id: mosque.mosque_id,
         [Op.or]: [
@@ -391,7 +391,7 @@ exports.getPublicContentById2 = async (req, res) => {
     }
 
     // Cari konten berdasarkan ID dan mosque_id
-    const article = await Content.findOne({
+    const article = await db.contents.findOne({
       where: {
         contents_id: id,
         mosque_id: mosque.mosque_id,
