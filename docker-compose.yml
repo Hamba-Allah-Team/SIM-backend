@@ -17,7 +17,7 @@ services:
       - backend
 
   web:
-    build: .
+    image: ${USERNAME}/sim-backend:${TAG:-main}
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${DB_USERNAME}:${DB_PASSWORD}@db:${DB_PORT}/${DB_DATABASE}
