@@ -224,51 +224,6 @@ exports.deleteActivity = async (req, res) => {
     }
 };
 
-// --- Public Controllers (umumnya tidak berubah banyak, hanya memastikan path gambar benar) ---
-exports.getPublicActivities = async (req, res) => {
-    try {
-        const mosqueId = req.params.mosque_id;
-        if (!mosqueId) return res.status(400).json({ message: "Mosque ID is required." });
-
-        const activities = await Activity.findAll({
-            where: { mosque_id: mosqueId },
-            attributes: {
-                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
-            },
-            order: [['start_date', 'ASC']] // Atau DESC, sesuai kebutuhan
-        });
-        res.json(activities);
-    } catch (error) {
-        console.error("Error fetching public activities:", error);
-        res.status(500).json({ message: "Failed to retrieve public activities" });
-    }
-};
-
-exports.getPublicActivityById = async (req, res) => {
-    try {
-        const { mosque_id, id } = req.params;
-        if (!mosque_id || !id) return res.status(400).json({ message: "Mosque ID and Activity ID are required." });
-
-        const activity = await Activity.findOne({
-            where: {
-                mosque_id,
-                activities_id: id
-            },
-            attributes: {
-                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
-            }
-        });
-
-        if (!activity) {
-            return res.status(404).json({ message: "Activity not found" });
-        }
-        res.json(activity);
-    } catch (error) {
-        console.error("Error fetching public activity by ID:", error);
-        res.status(500).json({ message: "Failed to retrieve activity detail" });
-    }
-};
-
 exports.getUpcomingActivities = async (req, res) => {
     try {
         const mosque = await Mosque.findOne({ where: { slug: req.params.slug } });
