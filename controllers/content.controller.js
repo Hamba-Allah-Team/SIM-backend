@@ -391,7 +391,7 @@ exports.getPublicContentById2 = async (req, res) => {
     }
 
     // Cari konten berdasarkan ID dan mosque_id
-    const article = await Content.findOne({
+    const article = await db.contents.findOne({
       where: {
         contents_id: id,
         mosque_id: mosque.mosque_id,

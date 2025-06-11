@@ -1,4 +1,4 @@
-const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews, getPublicContents2} = require("../controllers/content.controller");
+const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews, getPublicContents2, getPublicContentById2} = require("../controllers/content.controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
@@ -147,7 +147,7 @@ describe("updateContent", () => {
     };
 
     db.user.findByPk.mockResolvedValue(fakeUser);
-    db.Content = { findByPk: jest.fn().mockResolvedValue(fakeContent) };
+    db.contents = { findByPk: jest.fn().mockResolvedValue(fakeContent) };
 
     // Dummy fs behavior
     fs.existsSync.mockReturnValue(true);
@@ -159,7 +159,7 @@ describe("updateContent", () => {
     await updateContent(req, res);
 
     expect(db.user.findByPk).toHaveBeenCalledWith(1);
-    expect(db.Content.findByPk).toHaveBeenCalledWith("123");
+    expect(db.contents.findByPk).toHaveBeenCalledWith("123");
     expect(fakeContent.update).toHaveBeenCalledWith({
       title: "Update Judul",
       content_description: "Deskripsi baru",
@@ -200,7 +200,7 @@ describe("updateContent", () => {
   });
 
   it("should return 404 if content not found", async () => {
-    db.Content.findByPk.mockResolvedValue(null);
+    db.contents.findByPk.mockResolvedValue(null);
 
     await updateContent(req, res);
 
@@ -603,6 +603,72 @@ describe("getPublicContents2", () => {
     db.mosques.findOne.mockRejectedValue(new Error("DB error"));
 
     await getPublicContents2(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith({ message: "Gagal mengambil konten publik." });
+  });
+});
+
+// get public content by id for guest
+describe("getPublicContentById2", () => {
+  let req, res;
+
+  beforeEach(() => {
+    req = { params: { slug: "masjid-al-ikhlas", id: 123 } };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+      json: jest.fn(),
+    };
+    jest.clearAllMocks();
+  });
+
+  it("should return content if found", async () => {
+    const mockMosque = { mosque_id: 1 };
+    const mockContent = { contents_id: 123, title: "Judul Konten" };
+
+    db.mosques.findOne.mockResolvedValue(mockMosque);
+    db.contents.findOne = jest.fn().mockResolvedValue(mockContent);
+
+    await getPublicContentById2(req, res);
+
+    expect(db.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
+    expect(db.contents.findOne).toHaveBeenCalledWith({
+      where: { contents_id: 123, mosque_id: 1 },
+    });
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      message: "Konten ditemukan.",
+      data: mockContent,
+    });
+  });
+
+  it("should return 404 if mosque not found", async () => {
+    db.mosques.findOne.mockResolvedValue(null);
+
+    await getPublicContentById2(req, res);
+
+    expect(db.mosques.findOne).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Masjid tidak ditemukan." });
+  });
+
+  it("should return 404 if content not found", async () => {
+    db.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
+    db.contents.findOne = jest.fn().mockResolvedValue(null);
+
+    await getPublicContentById2(req, res);
+
+    expect(db.contents.findOne).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ message: "Konten tidak ditemukan." });
+  });
+
+  it("should return 500 on internal error", async () => {
+    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+
+    await getPublicContentById2(req, res);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.send).toHaveBeenCalledWith({ message: "Gagal mengambil konten publik." });
