@@ -1,10 +1,12 @@
 const { createContent } = require("../controllers/content.controller");
 const { updateContent } = require("../controllers/content.controller");
 const { deleteContent } = require("../controllers/content.Controller");
+const { getContents } = require("../controllers/content.Controller");
 const db = require("../models");
 const fs = require("fs");
 const path = require("path");
 const Content = db.contents;
+const { Op } = require("sequelize");
 
 jest.mock("../models");
 jest.mock("fs");
@@ -312,3 +314,79 @@ describe("deleteContent", () => {
     expect(res.send).toHaveBeenCalledWith({ message: "Terjadi kesalahan saat menghapus konten." });
   });
 });
+
+
+// get all conten
+describe("getContents", () => {
+
+  let req, res;
+
+    beforeEach(() => {
+      req = {
+        query: {
+          search: "",
+          sortBy: "published_date",
+          order: "ASC",
+        },
+        userId: 1,
+      };
+
+      res = {
+        status: jest.fn().mockReturnThis(),
+        send: jest.fn(),
+      };
+    });
+
+  it("should return 404 if user is not found", async () => {
+    db.user.findByPk.mockResolvedValue(null);
+
+    await getContents(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.send).toHaveBeenCalledWith({ message: "Pengguna tidak ditemukan." });
+  });
+
+  it("should return filtered and sorted contents", async () => {
+    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 1 });
+
+    const mockContents = [
+      { id: 1, title: "A", content_description: "Deskripsi A" },
+      { id: 2, title: "B", content_description: "Deskripsi B" },
+    ];
+
+    Content.findAll.mockResolvedValue(mockContents);
+
+    req.query.search = "Deskripsi";
+    req.query.sortBy = "title";
+    req.query.order = "DESC";
+
+    await getContents(req, res);
+
+    expect(Content.findAll).toHaveBeenCalledWith({
+      where: {
+        mosque_id: 1,
+        [Op.or]: [
+          { title: { [Op.like]: `%Deskripsi%` } },
+          { content_description: { [Op.like]: `%Deskripsi%` } },
+        ],
+      },
+      order: [["title", "DESC"]],
+    });
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith({
+      data: mockContents,
+      totalCount: mockContents.length,
+    });
+  });
+
+  it("should return 500 if unexpected error occurs", async () => {
+    db.user.findByPk.mockRejectedValue(new Error("Unexpected"));
+
+    await getContents(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith({ message: "Terjadi kesalahan saat mengambil konten." });
+  });
+});
+
