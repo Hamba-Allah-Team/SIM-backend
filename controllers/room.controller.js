@@ -10,7 +10,7 @@ const isValidImage = (image) => {
 
 exports.createRoom = async (req, res) => {
     try {
-        const {place_name, image, description } = req.body;
+        const { place_name, description, facilities, capacity } = req.body;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -24,8 +24,11 @@ exports.createRoom = async (req, res) => {
 
         const mosque_id = user.mosque_id;
 
-        if(image) {
-            if (!isValidImage(image)) {
+        if (!place_name || !description || !facilities || !capacity) {
+            return res.status(400).send({ message: "Nama ruangan, deskripsi, fasilitas, dan kapasitas wajib diisi." });
+        }
+        if (req.file) {
+            if (!isValidImage(req.file)) {
                 return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
             }
         }
@@ -46,8 +49,10 @@ exports.createRoom = async (req, res) => {
         const newRoom = await Room.create({
             mosque_id,
             place_name,
-            image: image || null,
-            description: description || null
+            image: req.file ? req.file.filename : "default_room.png",
+            description,
+            facilities,
+            capacity
         });
 
         res.status(201).send({
@@ -62,7 +67,7 @@ exports.createRoom = async (req, res) => {
 
 exports.getRooms = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = "", order = "ASC" } = req.query;
+        const { page = 1, limit = 10, search = "", order = "DESC" } = req.query;
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -142,7 +147,9 @@ exports.getRoomById = async (req, res) => {
 exports.updateRoom = async (req, res) => {
     try {
         const { id } = req.params;
-        const { place_name, image, description } = req.body;
+        const { place_name, description, facilities, capacity } = req.body;
+        const fs = require("fs");
+        const path = require("path");
 
         const user_id = req.userId;
         const user = await db.user.findByPk(user_id);
@@ -155,31 +162,53 @@ exports.updateRoom = async (req, res) => {
         }
 
         const mosque_id = user.mosque_id;
+        
 
-        if(image) {
-            if (!isValidImage(image)) {
+        const deleteImage = req.body.delete_image === 'true';
+
+        if (!place_name || !description || !facilities || !capacity) {
+            return res.status(400).send({ message: "Nama ruangan, deskripsi, fasilitas, dan kapasitas wajib diisi." });
+        }
+        // Cek apakah ruangan sudah ada
+        const existingRoom = await Room.findByPk(id);
+
+        if (!existingRoom) {
+            return res.status(404).json({ message: "Ruangan tidak ditemukan." });
+        }
+
+        if (existingRoom.mosque_id !== mosque_id) {
+            return res.status(403).send({ message: "Anda tidak memiliki izin untuk mengedit ruangan ini." });
+        }
+        let image = null;
+
+        if (deleteImage) {
+            if (existingRoom.image && existingRoom.image !== "default_room.png") {
+                const imagePath = path.join(__dirname, "../uploads", existingRoom.image);
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                }
+            }
+            image = "default_room.png";
+        } else if (req.file) {
+            if (!isValidImage(req.file)) {
                 return res.status(400).send({ message: "Format gambar tidak valid. Harus PNG, JPG, atau JPEG." });
             }
-        }
-
-        // Cek apakah ruangan sudah ada
-        const existingRoom = await Room.findOne({
-            where: {
-                room_id: id,
-                mosque_id,
-                deleted_at: null,
+            if (existingRoom.image) {
+                const imagePath = path.join(__dirname, "../uploads", existingRoom.image);
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                }
             }
-        });
 
-        if (existingRoom) {
-            return res.status(400).json({ message: "Room already exists" });
+            image = req.file.filename;
         }
 
-        // Update ruangan
         const updatedRoom = await Room.update({
             place_name,
-            image,
-            description
+            image: image,
+            description,
+            facilities,
+            capacity
         }, {
             where: {
                 room_id: id,
@@ -188,8 +217,8 @@ exports.updateRoom = async (req, res) => {
             }
         });
 
-        if (!updatedRoom[0]) {
-            return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+        if (!updatedRoom) {
+            return res.status(404).json({ message: "Ruangan tidak ditemukan." });
         }
 
         res.status(200).send({
@@ -220,16 +249,14 @@ exports.deleteRoom = async (req, res) => {
         const mosque_id = user.mosque_id;
 
         // Cek apakah ruangan sudah ada
-        const existingRoom = await Room.findOne({
-            where: {
-                room_id: id,
-                mosque_id,
-                deleted_at: null,
-            }
-        });
+        const existingRoom = await Room.findByPk(id);
 
         if (!existingRoom) {
             return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+        }
+
+        if( existingRoom.mosque_id !== mosque_id) {
+            return res.status(403).send({ message: "Anda tidak memiliki izin untuk menghapus ruangan ini." });
         }
 
         // Hapus ruangan
@@ -251,5 +278,82 @@ exports.deleteRoom = async (req, res) => {
     } catch (error) {
         console.error("Error deleting room:", error);
         res.status(500).json({ message: "Terjadi kesalahan saat menghapus ruangan" });
+    }
+}
+
+exports.getPublicRooms = async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        const mosque = await db.mosques.findOne({
+            where: {
+                slug
+            }
+        });
+
+        if (!mosque) {
+            return res.status(404).send({ message: "Masjid tidak ditemukan." });
+        }
+
+        const listRoom = await Room.findAll({
+            where: {
+                mosque_id: mosque.mosque_id,
+                deleted_at: null
+            },
+            order: [['room_id', 'ASC']]
+        });
+
+        res.status(200).send({
+            data: listRoom
+        });
+    } catch (error) {
+        console.error("Error fetching public rooms:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat mengambil daftar ruangan" });
+    }
+}
+
+exports.getPublicRoomById = async (req, res) => {
+    try {
+        const { slug, room_id } = req.params;
+
+        const mosque = await db.mosques.findOne({
+            where: {
+                slug
+            }
+        });
+
+        if (!mosque) {
+            return res.status(404).send({ message: "Masjid tidak ditemukan." });
+        }
+
+        const detailroom = await Room.findOne({
+            where: {
+                room_id: room_id,
+                mosque_id: mosque.mosque_id,
+                deleted_at: null
+            },
+            include: [{
+                model: db.reservation,
+                as: 'reservations',
+                attributes: ['title', 'reservation_date', 'start_time', 'end_time', 'status'],
+            }]
+        });
+
+        if (!detailroom) {
+            return res.status(404).send({ message: "Ruangan tidak ditemukan." });
+        }
+
+        const cleanDetailRoom = detailroom.toJSON();
+
+        console.log(cleanDetailRoom);
+
+        res.status(200).send({
+            message: "Detail ruangan ditemukan.",
+            data: cleanDetailRoom
+        });
+
+    } catch (error) {
+        console.error("Error fetching public room by ID:", error);
+        res.status(500).json({ message: "Terjadi kesalahan saat mengambil detail ruangan" });
     }
 }

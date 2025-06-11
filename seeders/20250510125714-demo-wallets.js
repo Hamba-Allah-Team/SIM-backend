@@ -15,13 +15,22 @@ module.exports = {
     await queryInterface.bulkInsert('wallets', [
       {
         mosque_id: 1,
+        wallet_name: 'Kas Masjid',
         wallet_type: 'cash',
         created_at: new Date(),
         updated_at: new Date()
       },
       {
         mosque_id: 1,
+        wallet_name: 'Rekening BRI',
         wallet_type: 'bank',
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
+        mosque_id: 1,
+        wallet_name: 'Dompet Gopay',
+        wallet_type: 'ewallet',
         created_at: new Date(),
         updated_at: new Date()
       }

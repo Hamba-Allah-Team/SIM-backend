@@ -64,22 +64,6 @@ module.exports = {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-      mosque_phone_whatsapp: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_email: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_facebook: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      mosque_instagram: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
       submitted_at: {
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal("NOW()"),

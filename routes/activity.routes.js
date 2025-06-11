@@ -1,5 +1,6 @@
 const { verifyToken } = require("../middleware/auth.middleware");
 const activityController = require("../controllers/activity.controller");
+const uploadMiddleware = require("../middleware/upload.middleware.js"); // 👈 1. Impor middleware upload Anda
 
 module.exports = function (app) {
     app.use(function (req, res, next) {
@@ -11,13 +12,22 @@ module.exports = function (app) {
     });
 
     // 📌 Admin Activity routes (dengan autentikasi)
-    app.post("/api/activities", verifyToken, activityController.createActivity); // Tambah kegiatan
-    app.get("/api/activities", verifyToken, activityController.getActivities); // Semua kegiatan
-    app.get("/api/activities/:id", verifyToken, activityController.getActivityById); // Detail kegiatan
-    app.put("/api/activities/:id", verifyToken, activityController.updateActivity); // Update kegiatan
-    app.delete("/api/activities/:id", verifyToken, activityController.deleteActivity); // Hapus kegiatan
+    app.post(
+        "/api/activities",
+        [verifyToken, uploadMiddleware.single("activityImage")], // 👈 2. Tambahkan multer di sini
+        activityController.createActivity
+    );
+    app.get("/api/activities", verifyToken, activityController.getActivities);
+    app.get("/api/activities/:id", verifyToken, activityController.getActivityById);
+    app.put(
+        "/api/activities/:id",
+        [verifyToken, uploadMiddleware.single("activityImage")], // 👈 3. Tambahkan multer di sini
+        activityController.updateActivity
+    );
+    app.delete("/api/activities/:id", verifyToken, activityController.deleteActivity);
 
     // 📌 Guest Activity routes (tanpa autentikasi)
-    app.get("/api/activities/guest/:mosque_id", activityController.getPublicActivities); // Semua kegiatan publik berdasarkan mosque_id
-    app.get("/api/activities/guest/:mosque_id/:id", activityController.getPublicActivityById); // Detail kegiatan publik berdasarkan mosque_id dan id
+    app.get("/api/public/activities/upcoming/:slug", activityController.getUpcomingActivities);
+    app.get("/api/public/activities/all/:slug", activityController.getAllUpcomingActivities);
+    app.get("/api/public/activities/past/:slug", activityController.getPastActivities);
 };

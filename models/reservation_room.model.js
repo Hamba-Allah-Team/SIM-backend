@@ -26,6 +26,14 @@ module.exports = (sequelize, Sequelize) => {
             type: Sequelize.TEXT,
             allowNull: true
         },
+        capacity: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
+        facilities: {
+            type: Sequelize.TEXT,
+            allowNull: false
+        },
         created_at: {
             type: Sequelize.DATE,
             defaultValue: Sequelize.NOW
@@ -53,10 +61,10 @@ module.exports = (sequelize, Sequelize) => {
             foreignKey: 'mosque_id',
             as: 'mosque'
         });
-        // ReservationRoom.hasMany(models.Reservation, {
-        //     foreignKey: 'room_id',
-        //     as: 'reservations'
-        // });
+        ReservationRoom.hasMany(models.reservation, {
+            foreignKey: 'room_id',
+            as: 'reservations',
+        });
     };
 
     return ReservationRoom;

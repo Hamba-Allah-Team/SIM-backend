@@ -14,16 +14,11 @@ exports.submitActivationRequest = async (req, res) => {
     const {
       username,
       email,
-      password, // Ditambahkan: Ambil password dari request body
+      password,
       proof_number,
       type,
       mosque_name,
       mosque_address,
-      mosque_description,
-      mosque_phone_whatsapp,
-      mosque_email,
-      mosque_facebook,
-      mosque_instagram,
     } = req.body;
 
     // Ditambahkan: Validasi untuk password
@@ -44,9 +39,11 @@ exports.submitActivationRequest = async (req, res) => {
       return res.status(400).send({ message: "Invalid activation type!" });
     }
 
+    const lowerCaseEmail = email.toLowerCase();
+
     const existingUser = await User.findOne({
-      where: { [Op.or]: [{ username }, { email }] },
-      transaction: t, // Tambahkan transaksi ke query
+      where: { [Op.or]: [{ username: username }, { email: lowerCaseEmail }] },
+      transaction: t,
     });
 
     if (existingUser) {
@@ -55,31 +52,28 @@ exports.submitActivationRequest = async (req, res) => {
         .status(400)
         .send({ message: "Username or email already exists!" });
     }
-    
+
     const existingActivation = await Activation.findOne({
-        where: {
-            [Op.or]: [{ username }, { email }],
-            status: { [Op.in]: ['pending', 'approved'] } 
-        },
-        transaction: t
+      where: {
+        [Op.or]: [{ username }, { email: lowerCaseEmail }],
+        status: { [Op.in]: ["pending", "approved"] },
+      },
+      transaction: t,
     });
 
     if (existingActivation) {
-        await t.rollback();
-        return res
-            .status(400)
-            .send({ message: "An activation request with this username or email already exists or is being processed." });
+      await t.rollback();
+      return res
+        .status(400)
+        .send({
+          message:
+            "An activation request with this username or email already exists or is being processed.",
+        });
     }
-
 
     const anyMosqueFieldFilled =
       mosque_name ||
-      mosque_address ||
-      mosque_description ||
-      mosque_phone_whatsapp ||
-      mosque_email ||
-      mosque_facebook ||
-      mosque_instagram;
+      mosque_address;
 
     if (anyMosqueFieldFilled) {
       if (!mosque_name || !mosque_address) {
@@ -98,19 +92,14 @@ exports.submitActivationRequest = async (req, res) => {
     const activation = await Activation.create(
       {
         username,
-        email,
-        password: hashedPassword, 
+        email: lowerCaseEmail,
+        password: hashedPassword,
         proof_number: proof_number,
         proof_image,
         activation_type: type,
         status: "pending",
         mosque_name: mosque_name || null,
         mosque_address: mosque_address || null,
-        mosque_phone_whatsapp: mosque_phone_whatsapp || null,
-        mosque_email: mosque_email || null,
-        mosque_facebook: mosque_facebook || null,
-        mosque_instagram: mosque_instagram || null,
-        mosque_description: mosque_description || null,
       },
       { transaction: t }
     );
@@ -159,26 +148,18 @@ exports.processActivationRequest = async (req, res) => {
         proof_image,
         mosque_name,
         mosque_address,
-        mosque_description,
-        mosque_phone_whatsapp,
-        mosque_email,
-        mosque_facebook,
-        mosque_instagram,
       } = activation;
 
       if (!password) {
         await t.rollback();
-        return res.status(500).send({ message: "Activation data is missing password." });
+        return res
+          .status(500)
+          .send({ message: "Activation data is missing password." });
       }
 
       const anyMosqueDataProvided =
         mosque_name ||
-        mosque_address ||
-        mosque_description ||
-        mosque_phone_whatsapp ||
-        mosque_email ||
-        mosque_facebook ||
-        mosque_instagram;
+        mosque_address;
 
       if (anyMosqueDataProvided && (!mosque_name || !mosque_address)) {
         await t.rollback();
@@ -195,11 +176,6 @@ exports.processActivationRequest = async (req, res) => {
           {
             name: mosque_name,
             address: mosque_address,
-            description: mosque_description || null,
-            phone_whatsapp: mosque_phone_whatsapp || null,
-            email: mosque_email || null,
-            facebook: mosque_facebook || null,
-            instagram: mosque_instagram || null,
           },
           { transaction: t }
         );
@@ -214,11 +190,10 @@ exports.processActivationRequest = async (req, res) => {
           email,
           password: password,
           name: username,
-          role: "admin", 
+          role: "admin",
           status: "active",
           mosque_id: mosque ? mosque.mosque_id : null,
-          extension_code: proof_number, 
-          profile_image: proof_image,
+          extension_code: proof_number,
           expired_at: expiredDate,
         },
         { transaction: t }
@@ -264,10 +239,9 @@ exports.processActivationRequest = async (req, res) => {
         .status(200)
         .send({ message: "Request rejected successfully." });
     } else {
-        await t.rollback(); 
-        return res.status(400).send({ message: "Invalid action." });
+      await t.rollback();
+      return res.status(400).send({ message: "Invalid action." });
     }
-
   } catch (error) {
     await t.rollback();
     console.error("Error processing activation request:", error);
@@ -278,9 +252,9 @@ exports.processActivationRequest = async (req, res) => {
 exports.submitExtensionRequest = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
-    const { username, email, proof_number, type, password } = req.body; 
+    const { username, email, proof_number, type } = req.body;
 
-    if (!username || !email || !proof_number || !type ) { 
+    if (!username || !email || !proof_number || !type) {
       await t.rollback();
       return res.status(400).send({ message: "All fields are required!" });
     }
@@ -297,24 +271,37 @@ exports.submitExtensionRequest = async (req, res) => {
       return res.status(400).send({ message: "Invalid extension type!" });
     }
 
-    const user = await User.findOne({ where: { username, email }, transaction: t });
+    const lowerCaseEmail = email.toLowerCase();
+
+    const user = await User.findOne({
+      where: {
+        username: username,
+        email: lowerCaseEmail,
+      },
+      transaction: t,
+    });
     if (!user) {
       await t.rollback();
       return res.status(404).send({ message: "User not found." });
     }
 
-    const extension = await Activation.create({
-      username,
-      email,
-      proof_number: proof_number,
-      proof_image,
-      activation_type: type,
-      status: "pending",
-      user_id: user.user_id,
-    }, { transaction: t });
+    const extension = await Activation.create(
+      {
+        username,
+        email: lowerCaseEmail,
+        proof_number: proof_number,
+        proof_image,
+        activation_type: type,
+        status: "pending",
+        user_id: user.user_id,
+      },
+      { transaction: t }
+    );
 
     await t.commit();
-    res.status(201).send({ message: "Extension request submitted.", extension });
+    res
+      .status(201)
+      .send({ message: "Extension request submitted.", extension });
   } catch (error) {
     await t.rollback();
     console.error("Error submitting extension request:", error);
@@ -345,18 +332,23 @@ exports.processExtensionRequest = async (req, res) => {
       return res.status(404).send({ message: "Extension request not found." });
     }
 
-    if (extensionRequest.status === "approved" || extensionRequest.status === "rejected") {
+    if (
+      extensionRequest.status === "approved" ||
+      extensionRequest.status === "rejected"
+    ) {
       await t.rollback();
       return res
         .status(400)
-        .send({ message: "This extension request has already been processed." });
+        .send({
+          message: "This extension request has already been processed.",
+        });
     }
 
     const user = await User.findOne({
       where: {
-        user_id: extensionRequest.user_id, 
+        user_id: extensionRequest.user_id,
       },
-      transaction: t
+      transaction: t,
     });
 
     if (!user) {
@@ -368,7 +360,10 @@ exports.processExtensionRequest = async (req, res) => {
       user.extension_code = extensionRequest.proof_number;
 
       const now = new Date();
-      const currentExpired = user.expired_at && new Date(user.expired_at) > now ? new Date(user.expired_at) : now;
+      const currentExpired =
+        user.expired_at && new Date(user.expired_at) > now
+          ? new Date(user.expired_at)
+          : now;
 
       const extendedDate = new Date(
         currentExpired.getTime() + 30 * 24 * 60 * 60 * 1000 // 30 hari
@@ -378,11 +373,14 @@ exports.processExtensionRequest = async (req, res) => {
 
       await user.save({ transaction: t });
 
-      await extensionRequest.update({
-        status: "approved",
-        approved_at: new Date(),
-        user_id: user.user_id, 
-      }, { transaction: t });
+      await extensionRequest.update(
+        {
+          status: "approved",
+          approved_at: new Date(),
+          user_id: user.user_id,
+        },
+        { transaction: t }
+      );
 
       await t.commit();
 
@@ -400,10 +398,13 @@ exports.processExtensionRequest = async (req, res) => {
         .status(200)
         .send({ message: "Extension approved and user updated.", user });
     } else if (action === "reject") {
-      await extensionRequest.update({
-        status: "rejected",
-        processed_at: new Date(),
-      }, { transaction: t });
+      await extensionRequest.update(
+        {
+          status: "rejected",
+          processed_at: new Date(),
+        },
+        { transaction: t }
+      );
 
       await t.commit();
 
@@ -417,8 +418,8 @@ exports.processExtensionRequest = async (req, res) => {
         .status(200)
         .send({ message: "Extension request rejected successfully." });
     } else {
-        await t.rollback();
-        return res.status(400).send({ message: "Invalid action." });
+      await t.rollback();
+      return res.status(400).send({ message: "Invalid action." });
     }
   } catch (error) {
     await t.rollback();
@@ -426,7 +427,6 @@ exports.processExtensionRequest = async (req, res) => {
     res.status(500).send({ message: error.message });
   }
 };
-
 
 // Get all Activation Requests (for Admin)
 exports.getActivationRequests = async (req, res) => {
@@ -445,7 +445,12 @@ exports.getActivationRequests = async (req, res) => {
     };
 
     if (status) {
-      where.status = status;
+      if (status.includes(',')) {
+        const statuses = status.split(',');
+        where.status = { [Op.in]: statuses };
+      } else {
+        where.status = status;
+      }
     }
 
     if (search) {
@@ -453,7 +458,8 @@ exports.getActivationRequests = async (req, res) => {
       where[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
-        ...( !isNaN(searchNum) ? [{ activation_id: searchNum }] : [])
+        { proof_number: { [Op.iLike]: `%${search}%` } },
+        ...(!isNaN(searchNum) ? [{ activation_id: searchNum }] : []),
       ];
     }
 
@@ -470,7 +476,7 @@ exports.getActivationRequests = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset),
       totalPages: Math.ceil(activations.count / parseInt(limit)),
-      currentPage: Math.floor(parseInt(offset) / parseInt(limit)) + 1
+      currentPage: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
     });
   } catch (error) {
     console.error("Error fetching activation requests:", error);
@@ -506,7 +512,7 @@ exports.getExtensionRequests = async (req, res) => {
       search = "",
       limit = 20,
       offset = 0,
-      sortBy = "createdAt", 
+      sortBy = "createdAt",
       sortOrder = "DESC",
     } = req.query;
 
@@ -515,7 +521,12 @@ exports.getExtensionRequests = async (req, res) => {
     };
 
     if (status) {
-      where.status = status;
+      if (status.includes(',')) {
+        const statuses = status.split(',');
+        where.status = { [Op.in]: statuses };
+      } else {
+        where.status = status;
+      }
     }
 
     if (search) {
@@ -523,7 +534,8 @@ exports.getExtensionRequests = async (req, res) => {
       where[Op.or] = [
         { username: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
-        ...( !isNaN(searchNum) ? [{ activation_id: searchNum }] : [])
+        { proof_number: { [Op.iLike]: `%${search}%` } },
+        ...(!isNaN(searchNum) ? [{ activation_id: searchNum }] : []),
       ];
     }
 
@@ -540,7 +552,7 @@ exports.getExtensionRequests = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset),
       totalPages: Math.ceil(extensions.count / parseInt(limit)),
-      currentPage: Math.floor(parseInt(offset) / parseInt(limit)) + 1
+      currentPage: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
     });
   } catch (error) {
     console.error("Error fetching extension requests:", error);
@@ -565,5 +577,137 @@ exports.getExtensionRequestById = async (req, res) => {
   } catch (error) {
     console.error("Error fetching extension request:", error);
     res.status(500).send({ message: error.message });
+  }
+};
+
+const toUTCISODateString = (date) => {
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Helper function to format a date object to 'YYYY-MM' using UTC for monthly aggregation.
+ * @param {Date} date - The date object to format.
+ * @returns {string} The formatted month string.
+ */
+const toUTCMonthString = (date) => {
+    const year = date.getUTCFullYear();
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    return `${year}-${month}`;
+};
+
+
+exports.getDashboardData = async (req, res) => {
+  try {
+    const { period = '30d', startDate: queryStartDate, endDate: queryEndDate } = req.query;
+
+    let endDate = new Date();
+    let startDate = new Date();
+    let isMonthly = false;
+
+    // Determine the date range and aggregation level based on the period
+    if (period === '12m') {
+      isMonthly = true;
+      // Set endDate to the end of the current month to get the full month's data
+      endDate.setUTCHours(23, 59, 59, 999);
+      endDate.setUTCDate(new Date(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, 0).getUTCDate());
+
+      // Calculate startDate to be the first day, 11 months ago, creating a 12-month period
+      startDate = new Date(endDate);
+      startDate.setUTCMonth(startDate.getUTCMonth() - 11);
+      startDate.setUTCDate(1);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+    } else if (period === '7d') {
+      startDate.setUTCDate(endDate.getUTCDate() - 6);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(23, 59, 59, 999);
+    } else { // Default to 30d
+      startDate.setUTCDate(endDate.getUTCDate() - 29);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(23, 59, 59, 999);
+    }
+    
+    // Dynamically choose date function based on DB dialect to prevent errors
+    const dialect = db.sequelize.getDialect();
+    const dateFunction = isMonthly
+      ? (
+          dialect === 'mysql'
+            // MySQL-specific function
+            ? [db.sequelize.fn('DATE_FORMAT', db.sequelize.col('approved_at'), '%Y-%m'), 'date']
+            // Standard SQL function for PostgreSQL and others
+            : [db.sequelize.fn('TO_CHAR', db.sequelize.col('approved_at'), 'YYYY-MM'), 'date']
+        )
+      : [db.sequelize.fn('DATE', db.sequelize.col('approved_at')), 'date'];
+
+    const results = await Activation.findAll({
+      attributes: [
+        dateFunction,
+        'activation_type',
+        [db.sequelize.fn('COUNT', db.sequelize.col('activation_id')), 'count'],
+      ],
+      where: {
+        status: 'approved',
+        approved_at: { [Op.between]: [startDate, endDate] },
+      },
+      group: ['date', 'activation_type'],
+      order: [['date', 'ASC']],
+      raw: true,
+    });
+
+    const statsMap = new Map();
+    const labels = [];
+
+    // Initialize the map with all dates/months in the range to ensure no gaps
+    if (isMonthly) {
+        let loopDate = new Date(startDate);
+        // Use a fixed loop for 12 months for reliability
+        for (let i = 0; i < 12; i++) {
+            const formattedMonth = toUTCMonthString(loopDate);
+            labels.push(formattedMonth);
+            statsMap.set(formattedMonth, { activations: 0, extensions: 0 });
+            loopDate.setUTCMonth(loopDate.getUTCMonth() + 1);
+        }
+    } else {
+        let loopDate = new Date(startDate);
+        while (loopDate <= endDate) {
+            const formattedDate = toUTCISODateString(loopDate);
+            labels.push(formattedDate);
+            statsMap.set(formattedDate, { activations: 0, extensions: 0 });
+            loopDate.setUTCDate(loopDate.getUTCDate() + 1);
+        }
+    }
+    
+    // Populate the map with data from the database
+    results.forEach((row) => {
+      // The 'date' field from the query is already formatted as YYYY-MM or YYYY-MM-DD
+      const dateKey = row.date;
+      const count = parseInt(row.count, 10) || 0;
+
+      if (statsMap.has(dateKey)) {
+        const currentStats = statsMap.get(dateKey);
+        if (row.activation_type === 'activation') {
+          currentStats.activations = count;
+        } else if (row.activation_type === 'extension') {
+          currentStats.extensions = count;
+        }
+      }
+    });
+
+    // Convert map values to arrays for the final response
+    const activationData = labels.map(label => statsMap.get(label)?.activations || 0);
+    const extensionData = labels.map(label => statsMap.get(label)?.extensions || 0);
+
+    const responsePayload = {
+      labels,
+      datasets: [
+        { label: 'Aktivasi Baru', data: activationData },
+        { label: 'Perpanjangan', data: extensionData },
+      ],
+    };
+
+    res.status(200).send(responsePayload);
+  } catch (error) {
+    console.error("Dashboard Error:", error);
+    res.status(500).send({ message: 'Failed to fetch dashboard data', error: error.message });
   }
 };

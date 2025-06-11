@@ -5,6 +5,11 @@ module.exports = (sequelize, Sequelize) => {
       primaryKey: true,
       autoIncrement: true
     },
+    slug: {
+      type: Sequelize.STRING,
+      allowNull: true, // Sesuaikan dengan migrasi
+      unique: true
+    },
     name: {
       type: Sequelize.STRING,
       allowNull: false
@@ -38,11 +43,11 @@ module.exports = (sequelize, Sequelize) => {
       allowNull: true
     },
     latitude: {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true
     },
     longitude: {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true
     },
     created_at: {
@@ -55,9 +60,22 @@ module.exports = (sequelize, Sequelize) => {
     }
   }, {
     timestamps: true,
-    createdAt: 'created_at', 
-    updatedAt: 'updated_at' 
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
+
+  const generateSlug = (instance) => {
+    if (instance.name && instance.changed('name')) {
+      const baseSlug = instance.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-') // Ganti karakter non-alfanumerik dengan strip
+        .replace(/^-+|-+$/g, '');   // Hapus strip di awal/akhir
+      instance.slug = baseSlug;
+    }
+  };
+
+  Mosque.beforeCreate(generateSlug);
+  Mosque.beforeUpdate(generateSlug);
 
   Mosque.associate = (models) => {
     Mosque.hasMany(models.user, {
@@ -65,6 +83,6 @@ module.exports = (sequelize, Sequelize) => {
       as: "users"
     });
   };
-  
+
   return Mosque;
 };

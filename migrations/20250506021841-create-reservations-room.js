@@ -9,6 +9,8 @@ module.exports = {
       place_name: { type: Sequelize.STRING, allowNull: false },
       image: Sequelize.STRING,
       description: { type: Sequelize.TEXT, allowNull: false },
+      facilities: { type: Sequelize.TEXT, allowNull: false },
+      capacity: { type: Sequelize.INTEGER, allowNull: false },
       created_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') },
       updated_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') }
     });
