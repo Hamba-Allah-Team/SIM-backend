@@ -10,21 +10,17 @@ const { Op } = require("sequelize");
 
 // Fungsi helper untuk menghapus file gambar
 const deleteImageFile = (filePath) => {
-    if (filePath) {
-        const fullPath = path.join(__dirname, '../../', filePath); // Sesuaikan '../..' jika struktur folder berbeda
-        const fileSystemPath = path.join(projectRoot, filePath.startsWith('/') ? filePath.substring(1) : filePath);
-
-
-        fs.unlink(fileSystemPath, (err) => {
-            if (err) {
-                console.error("Gagal menghapus file gambar lama:", err.message);
-            } else {
-                console.log("File gambar lama berhasil dihapus:", fileSystemPath);
-            }
-        });
+    if (!filePath) return;
+    try {
+        const fullPath = path.resolve(__dirname, '../../', filePath.startsWith('/') ? filePath.substring(1) : filePath);
+        if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+            console.log(`File lama berhasil dihapus: ${fullPath}`);
+        }
+    } catch (err) {
+        console.error("Gagal menghapus file gambar:", err.message);
     }
 };
-
 
 // 📥 CREATE activity
 exports.createActivity = async (req, res) => {
@@ -129,65 +125,57 @@ exports.updateActivity = async (req, res) => {
         const userId = req.userId;
         const user = await User.findByPk(userId);
         if (!user) {
-            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
             return res.status(404).json({ message: "User not found" });
         }
 
         const activity = await Activity.findOne({
             where: {
                 activities_id: req.params.id,
-                mosque_id: user.mosque_id // Pastikan user.mosque_id ada
+                mosque_id: user.mosque_id
             }
         });
 
         if (!activity) {
-            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
             return res.status(404).json({ message: "Activity not found" });
         }
 
-        const oldImagePath = activity.image; // Simpan path gambar lama
-        let newImagePath = oldImagePath;
-
-        if (req.file) {
-            newImagePath = `/uploads/${req.file.filename}`;
-        }
-
-        // Dapatkan data lain dari body
+        // 👈 PERBAIKAN: Membangun objek update secara dinamis
+        const updateData = {};
         const {
             event_name,
             event_description,
             start_date,
             end_date,
             start_time,
-            end_time
+            end_time,
+            deleteImage,
         } = req.body;
 
+        if (event_name) updateData.event_name = event_name;
+        if (event_description !== undefined) updateData.event_description = event_description;
+        if (start_date) updateData.start_date = start_date;
+        if (end_date) updateData.end_date = end_date;
+        if (start_time) updateData.start_time = start_time;
+        if (end_time) updateData.end_time = end_time;
 
-        await activity.update({
-            event_name: event_name || activity.event_name,
-            image: newImagePath, // Gunakan path baru atau path lama jika tidak ada file baru
-            event_description: event_description || activity.event_description,
-            start_date: start_date || activity.start_date,
-            end_date: end_date || activity.end_date,
-            start_time: start_time || activity.start_time,
-            end_time: end_time || activity.end_time,
-            // user_id tidak diupdate di sini, karena user yg mengupdate mungkin admin, bukan pembuat asli
-            // mosque_id juga tidak diupdate
-        });
-
-        // Jika ada file baru diupload DAN path gambar lama ada (bukan null/kosong) DAN path baru beda dari path lama
-        if (req.file && oldImagePath && oldImagePath !== newImagePath) {
-            deleteImageFile(oldImagePath);
+        // Logika untuk menangani gambar
+        if (deleteImage === 'true') {
+            deleteImageFile(activity.image); // Hapus file fisik
+            updateData.image = null; // Siapkan untuk update database menjadi null
+        } else if (req.file) {
+            deleteImageFile(activity.image); // Hapus file lama jika ada yang baru diunggah
+            updateData.image = `/uploads/${req.file.filename}`; // Siapkan path baru
         }
+        // Jika tidak ada kondisi di atas, 'image' tidak akan ditambahkan ke 'updateData', sehingga tidak diubah.
 
-        res.json({ message: "Activity updated successfully", activity });
+        await activity.update(updateData);
+
+        res.json({ message: "Activity updated successfully", activity: await activity.reload() });
     } catch (error) {
         console.error("Error updating activity:", error);
-        if (req.file) deleteImageFile(path.join('uploads', req.file.filename)); // Hapus file baru jika ada error saat update DB
-
-        if (error.message && error.message.includes("Hanya file JPEG, JPG, PNG yang diizinkan!")) {
-            return res.status(400).json({ message: error.message });
-        }
+        if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
         res.status(500).json({ message: "Failed to update activity" });
     }
 };
@@ -221,51 +209,6 @@ exports.deleteActivity = async (req, res) => {
     } catch (error) {
         console.error("Error deleting activity:", error);
         res.status(500).json({ message: "Failed to delete activity" });
-    }
-};
-
-// --- Public Controllers (umumnya tidak berubah banyak, hanya memastikan path gambar benar) ---
-exports.getPublicActivities = async (req, res) => {
-    try {
-        const mosqueId = req.params.mosque_id;
-        if (!mosqueId) return res.status(400).json({ message: "Mosque ID is required." });
-
-        const activities = await Activity.findAll({
-            where: { mosque_id: mosqueId },
-            attributes: {
-                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
-            },
-            order: [['start_date', 'ASC']] // Atau DESC, sesuai kebutuhan
-        });
-        res.json(activities);
-    } catch (error) {
-        console.error("Error fetching public activities:", error);
-        res.status(500).json({ message: "Failed to retrieve public activities" });
-    }
-};
-
-exports.getPublicActivityById = async (req, res) => {
-    try {
-        const { mosque_id, id } = req.params;
-        if (!mosque_id || !id) return res.status(400).json({ message: "Mosque ID and Activity ID are required." });
-
-        const activity = await Activity.findOne({
-            where: {
-                mosque_id,
-                activities_id: id
-            },
-            attributes: {
-                exclude: ['user_id'] // Mungkin user_id tidak perlu ditampilkan publik
-            }
-        });
-
-        if (!activity) {
-            return res.status(404).json({ message: "Activity not found" });
-        }
-        res.json(activity);
-    } catch (error) {
-        console.error("Error fetching public activity by ID:", error);
-        res.status(500).json({ message: "Failed to retrieve activity detail" });
     }
 };
 
