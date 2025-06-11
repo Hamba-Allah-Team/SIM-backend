@@ -1,4 +1,4 @@
-const { createActivity, getActivities, getActivityById } = require('../controllers/activity.controller');
+const { createActivity, getActivities, getActivityById, deleteActivity } = require('../controllers/activity.controller');
 const dbActivity = require('../models');
 import * as fs from "fs";
 const path = require('path');
@@ -10,7 +10,7 @@ jest.mock('fs');
 describe('createActivity controller', () => {
 
     jest.spyOn(console, "error").mockImplementation(() => {});
-    
+
     let req, res;
 
     beforeEach(() => {
@@ -230,5 +230,86 @@ describe('getActivityById controller', () => {
 
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ message: 'Failed to retrieve activity' });
+    });
+});
+
+// delete activity
+describe('deleteActivity controller', () => {
+    let req, res;
+
+    beforeEach(() => {
+        req = {
+            userId: 1,
+            params: { id: 101 }
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn()
+        };
+        jest.clearAllMocks();
+    });
+
+    it('should return 404 if user not found', async () => {
+        dbActivity.user.findByPk.mockResolvedValue(null);
+
+        await deleteActivity(req, res);
+
+        expect(dbActivity.user.findByPk).toHaveBeenCalledWith(1);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
+    });
+
+    it('should return 404 if activity not found', async () => {
+        const mockUser = { id: 1, mosque_id: 10 };
+        dbActivity.user.findByPk.mockResolvedValue(mockUser);
+        dbActivity.activity.findOne.mockResolvedValue(null);
+
+        await deleteActivity(req, res);
+
+        expect(dbActivity.activity.findOne).toHaveBeenCalledWith({
+            where: {
+                activities_id: 101,
+                mosque_id: 10
+            }
+        });
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Activity not found' });
+    });
+
+    it('should delete activity and related image', async () => {
+        const mockUser = { id: 1, mosque_id: 10 };
+        const mockActivity = {
+            activities_id: 101,
+            image: '/uploads/kajian.jpg',
+            destroy: jest.fn().mockResolvedValue(true)
+        };
+
+        dbActivity.user.findByPk.mockResolvedValue(mockUser);
+        dbActivity.activity.findOne.mockResolvedValue(mockActivity);
+
+        // ✅ Gunakan spyOn untuk mock fs.unlink
+        const unlinkSpy = jest.spyOn(fs, 'unlink').mockImplementation((path, callback) => {
+            callback(null); // Simulasi penghapusan berhasil
+        });
+
+        await deleteActivity(req, res);
+
+        expect(mockActivity.destroy).toHaveBeenCalled();
+        expect(unlinkSpy).toHaveBeenCalledWith(
+            expect.stringMatching(/uploads[\\/]+kajian\.jpg/),
+            expect.any(Function)
+        );
+        expect(res.json).toHaveBeenCalledWith({ message: 'Activity deleted successfully' });
+
+        unlinkSpy.mockRestore(); // opsional: bersihkan spy setelah test
+    });
+
+    it('should return 500 if error occurs', async () => {
+        dbActivity.user.findByPk.mockRejectedValue(new Error('DB Error'));
+
+        await deleteActivity(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ message: 'Failed to delete activity' });
     });
 });
