@@ -316,14 +316,10 @@ exports.getPublicRecentNews = async (req, res) => {
         ? news.content_description.split(' ').slice(0, 20).join(' ') + '...'
         : 'Klik untuk membaca selengkapnya.';
 
-      // 👈 PERBAIKAN DI SINI: Menggunakan API_BASE_URL dari .env untuk konsistensi
-      const imageUrl = news.image
-        ? `${process.env.API_BASE_URL}/uploads/${news.image}` // Contoh: http://localhost:8080/uploads/gambar.jpg
-        : 'https://placehold.co/600x400/EBF1F4/888?text=Berita';
-
       return {
         id: news.contents_id,
-        img: imageUrl,
+        // 👈 PERBAIKAN: Backend sekarang HANYA mengirimkan path yang tersimpan di DB
+        img: news.image, // Contoh: /uploads/gambar.jpg atau gambar.jpg
         title: news.title,
         date: new Date(news.published_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
         excerpt: excerpt
