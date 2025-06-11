@@ -1,8 +1,8 @@
 const { createContent,  updateContent, deleteContent, getContents, getContentById, getPublicRecentNews, getPublicContents2, getPublicContentById2} = require("../controllers/content.controller");
-const db = require("../models");
+const dbContent = require("../models");
 const fs = require("fs");
 const path = require("path");
-const Content = db.contents;
+const Content = dbContent.contents;
 const { Op } = require("sequelize");
 
 jest.mock("../models");
@@ -43,13 +43,13 @@ describe("createContent", () => {
     const fakeUser = { id: 1, mosque_id: 1 };
     const fakeContent = { id: 10, title: req.body.title };
 
-    db.user.findByPk.mockResolvedValue(fakeUser);
-    db.contents.create.mockResolvedValue(fakeContent);
+    dbContent.user.findByPk.mockResolvedValue(fakeUser);
+    dbContent.contents.create.mockResolvedValue(fakeContent);
 
     await createContent(req, res);
 
-    expect(db.user.findByPk).toHaveBeenCalledWith(1);
-    expect(db.contents.create).toHaveBeenCalledWith({
+    expect(dbContent.user.findByPk).toHaveBeenCalledWith(1);
+    expect(dbContent.contents.create).toHaveBeenCalledWith({
       title: "Lebaran Idul Adha",
       content_description: "Masjid Al Hikmah mengumumkan mendapat 5 hewan kurban, 3 sapi dan 2 kambing",
       image: "gambarSapi.jpg",
@@ -88,7 +88,7 @@ describe("createContent", () => {
   });
 
   it("should return 404 if user not found", async () => {
-    db.user.findByPk.mockResolvedValue(null);
+    dbContent.user.findByPk.mockResolvedValue(null);
 
     await createContent(req, res);
 
@@ -99,7 +99,7 @@ describe("createContent", () => {
   });
 
   it("should handle internal server error", async () => {
-    db.user.findByPk.mockRejectedValue(new Error("DB error"));
+    dbContent.user.findByPk.mockRejectedValue(new Error("DB error"));
 
     await createContent(req, res);
 
@@ -146,8 +146,8 @@ describe("updateContent", () => {
       update: jest.fn().mockResolvedValue(true),
     };
 
-    db.user.findByPk.mockResolvedValue(fakeUser);
-    db.contents = { findByPk: jest.fn().mockResolvedValue(fakeContent) };
+    dbContent.user.findByPk.mockResolvedValue(fakeUser);
+    dbContent.contents = { findByPk: jest.fn().mockResolvedValue(fakeContent) };
 
     // Dummy fs behavior
     fs.existsSync.mockReturnValue(true);
@@ -158,8 +158,8 @@ describe("updateContent", () => {
   it("should update content successfully", async () => {
     await updateContent(req, res);
 
-    expect(db.user.findByPk).toHaveBeenCalledWith(1);
-    expect(db.contents.findByPk).toHaveBeenCalledWith("123");
+    expect(dbContent.user.findByPk).toHaveBeenCalledWith(1);
+    expect(dbContent.contents.findByPk).toHaveBeenCalledWith("123");
     expect(fakeContent.update).toHaveBeenCalledWith({
       title: "Update Judul",
       content_description: "Deskripsi baru",
@@ -189,7 +189,7 @@ describe("updateContent", () => {
   });
 
   it("should return 404 if user not found", async () => {
-    db.user.findByPk.mockResolvedValue(null);
+    dbContent.user.findByPk.mockResolvedValue(null);
 
     await updateContent(req, res);
 
@@ -200,7 +200,7 @@ describe("updateContent", () => {
   });
 
   it("should return 404 if content not found", async () => {
-    db.contents.findByPk.mockResolvedValue(null);
+    dbContent.contents.findByPk.mockResolvedValue(null);
 
     await updateContent(req, res);
 
@@ -245,7 +245,7 @@ describe("updateContent", () => {
   });
 
   it("should handle internal server error", async () => {
-    db.user.findByPk.mockRejectedValue(new Error("DB Error"));
+    dbContent.user.findByPk.mockRejectedValue(new Error("DB Error"));
 
     await updateContent(req, res);
 
@@ -277,7 +277,7 @@ describe("deleteContent", () => {
   });
 
   it("should return 404 if user is not found", async () => {
-    db.user.findByPk.mockResolvedValue(null);
+    dbContent.user.findByPk.mockResolvedValue(null);
 
     await deleteContent(req, res);
 
@@ -292,7 +292,7 @@ describe("deleteContent", () => {
       destroy: jest.fn().mockResolvedValue(undefined),
     };
 
-    db.user.findByPk.mockResolvedValue({ id: 10, mosque_id: 1 });
+    dbContent.user.findByPk.mockResolvedValue({ id: 10, mosque_id: 1 });
     Content.findByPk.mockResolvedValue(mockArticle);
 
     await deleteContent(req, res);
@@ -303,7 +303,7 @@ describe("deleteContent", () => {
   });
 
   it("should return 500 if unexpected error occurs", async () => {
-    db.user.findByPk.mockRejectedValue(new Error("Unexpected error"));
+    dbContent.user.findByPk.mockRejectedValue(new Error("Unexpected error"));
 
     await deleteContent(req, res);
 
@@ -335,7 +335,7 @@ describe("getContents", () => {
     });
 
   it("should return 404 if user is not found", async () => {
-    db.user.findByPk.mockResolvedValue(null);
+    dbContent.user.findByPk.mockResolvedValue(null);
 
     await getContents(req, res);
 
@@ -344,7 +344,7 @@ describe("getContents", () => {
   });
 
   it("should return filtered and sorted contents", async () => {
-    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 1 });
+    dbContent.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 1 });
 
     const mockContents = [
       { id: 1, title: "A", content_description: "Deskripsi A" },
@@ -378,7 +378,7 @@ describe("getContents", () => {
   });
 
   it("should return 500 if unexpected error occurs", async () => {
-    db.user.findByPk.mockRejectedValue(new Error("Unexpected"));
+    dbContent.user.findByPk.mockRejectedValue(new Error("Unexpected"));
 
     await getContents(req, res);
 
@@ -405,7 +405,7 @@ beforeEach(() => {
 
 describe("getContentById", () => {
   it("should return 404 if user is not found", async () => {
-    db.user.findByPk.mockResolvedValue(null);
+    dbContent.user.findByPk.mockResolvedValue(null);
 
     await getContentById(req, res);
 
@@ -414,7 +414,7 @@ describe("getContentById", () => {
   });
 
   it("should return 404 if content is not found", async () => {
-    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
+    dbContent.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
     Content.findOne.mockResolvedValue(null);
 
     await getContentById(req, res);
@@ -433,7 +433,7 @@ describe("getContentById", () => {
   it("should return content if found", async () => {
     const mockArticle = { id: 1, contents_id: "1", mosque_id: 2, title: "Test" };
 
-    db.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
+    dbContent.user.findByPk.mockResolvedValue({ id: 1, mosque_id: 2 });
     Content.findOne.mockResolvedValue(mockArticle);
 
     await getContentById(req, res);
@@ -446,7 +446,7 @@ describe("getContentById", () => {
   });
 
   it("should return 500 if unexpected error occurs", async () => {
-    db.user.findByPk.mockRejectedValue(new Error("Unexpected"));
+    dbContent.user.findByPk.mockRejectedValue(new Error("Unexpected"));
 
     await getContentById(req, res);
 
@@ -477,7 +477,7 @@ let req, res;
   });
 
   it("should return 404 if mosque is not found", async () => {
-    db.mosques.findOne.mockResolvedValue(null);
+    dbContent.mosques.findOne.mockResolvedValue(null);
 
     await getPublicRecentNews(req, res);
 
@@ -486,7 +486,7 @@ let req, res;
   });
 
   it("should return empty array if mosque found but no news", async () => {
-    db.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
+    dbContent.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
     Content.findAll.mockResolvedValue([]);
 
     await getPublicRecentNews(req, res);
@@ -506,7 +506,7 @@ let req, res;
       },
     ];
 
-    db.mosques.findOne.mockResolvedValue(mockMosque);
+    dbContent.mosques.findOne.mockResolvedValue(mockMosque);
     Content.findAll.mockResolvedValue(mockNews);
 
     await getPublicRecentNews(req, res);
@@ -523,7 +523,7 @@ let req, res;
   });
 
   it("should return 500 if unexpected error occurs", async () => {
-    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+    dbContent.mosques.findOne.mockRejectedValue(new Error("DB error"));
 
     await getPublicRecentNews(req, res);
 
@@ -551,8 +551,8 @@ describe("getPublicContents2", () => {
     };
 
     // Mocking models
-    db.mosques.findOne = jest.fn();
-    db.contents = {
+    dbContent.mosques.findOne = jest.fn();
+    dbContent.contents = {
       findAndCountAll: jest.fn(),
     };
   });
@@ -566,15 +566,15 @@ describe("getPublicContents2", () => {
       count: 1,
     };
 
-    db.mosques.findOne.mockResolvedValue(mockMosque);
-    db.contents.findAndCountAll.mockResolvedValue(mockContents);
+    dbContent.mosques.findOne.mockResolvedValue(mockMosque);
+    dbContent.contents.findAndCountAll.mockResolvedValue(mockContents);
 
     await getPublicContents2(req, res);
 
-    expect(db.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
-    expect(db.contents.findAndCountAll).toHaveBeenCalled();
+    expect(dbContent.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
+    expect(dbContent.contents.findAndCountAll).toHaveBeenCalled();
 
-    const callArgs = db.contents.findAndCountAll.mock.calls[0][0];
+    const callArgs = dbContent.contents.findAndCountAll.mock.calls[0][0];
     expect(callArgs.where.mosque_id).toBe(1);
     expect(callArgs.order).toEqual([["published_date", "ASC"]]);
 
@@ -591,7 +591,7 @@ describe("getPublicContents2", () => {
   });
 
   it("should return 404 if mosque not found", async () => {
-    db.mosques.findOne.mockResolvedValue(null);
+    dbContent.mosques.findOne.mockResolvedValue(null);
 
     await getPublicContents2(req, res);
 
@@ -600,7 +600,7 @@ describe("getPublicContents2", () => {
   });
 
   it("should return 500 on internal error", async () => {
-    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+    dbContent.mosques.findOne.mockRejectedValue(new Error("DB error"));
 
     await getPublicContents2(req, res);
 
@@ -627,13 +627,13 @@ describe("getPublicContentById2", () => {
     const mockMosque = { mosque_id: 1 };
     const mockContent = { contents_id: 123, title: "Judul Konten" };
 
-    db.mosques.findOne.mockResolvedValue(mockMosque);
-    db.contents.findOne = jest.fn().mockResolvedValue(mockContent);
+    dbContent.mosques.findOne.mockResolvedValue(mockMosque);
+    dbContent.contents.findOne = jest.fn().mockResolvedValue(mockContent);
 
     await getPublicContentById2(req, res);
 
-    expect(db.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
-    expect(db.contents.findOne).toHaveBeenCalledWith({
+    expect(dbContent.mosques.findOne).toHaveBeenCalledWith({ where: { slug: "masjid-al-ikhlas" } });
+    expect(dbContent.contents.findOne).toHaveBeenCalledWith({
       where: { contents_id: 123, mosque_id: 1 },
     });
 
@@ -645,28 +645,28 @@ describe("getPublicContentById2", () => {
   });
 
   it("should return 404 if mosque not found", async () => {
-    db.mosques.findOne.mockResolvedValue(null);
+    dbContent.mosques.findOne.mockResolvedValue(null);
 
     await getPublicContentById2(req, res);
 
-    expect(db.mosques.findOne).toHaveBeenCalled();
+    expect(dbContent.mosques.findOne).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ message: "Masjid tidak ditemukan." });
   });
 
   it("should return 404 if content not found", async () => {
-    db.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
-    db.contents.findOne = jest.fn().mockResolvedValue(null);
+    dbContent.mosques.findOne.mockResolvedValue({ mosque_id: 1 });
+    dbContent.contents.findOne = jest.fn().mockResolvedValue(null);
 
     await getPublicContentById2(req, res);
 
-    expect(db.contents.findOne).toHaveBeenCalled();
+    expect(dbContent.contents.findOne).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.send).toHaveBeenCalledWith({ message: "Konten tidak ditemukan." });
   });
 
   it("should return 500 on internal error", async () => {
-    db.mosques.findOne.mockRejectedValue(new Error("DB error"));
+    dbContent.mosques.findOne.mockRejectedValue(new Error("DB error"));
 
     await getPublicContentById2(req, res);
 
