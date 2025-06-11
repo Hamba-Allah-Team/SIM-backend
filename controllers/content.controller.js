@@ -322,7 +322,7 @@ exports.getPublicRecentNews = async (req, res) => {
 
       return {
         id: news.contents_id,
-        img: news.image ? `${req.protocol}://${req.get('host')}/uploads/${news.image}` : 'https://placehold.co/600x400/EBF1F4/888?text=Berita',
+        img: news.image ? `/uploads/${news.image}` : 'https://placehold.co/600x400/EBF1F4/888?text=Berita',
         title: news.title,
         date: new Date(news.published_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
         excerpt: excerpt
