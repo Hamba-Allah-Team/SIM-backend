@@ -18,6 +18,8 @@ module.exports = {
         place_name: 'Ruang Serbaguna',
         image: 'ruang-serbaguna.jpg',
         description: 'Digunakan untuk pengajian dan kegiatan komunitas.',
+        facilities: 'AC, Proyektor, Kursi, Meja',
+        capacity: 30,
         created_at: new Date(),
         updated_at: new Date()
       },
@@ -26,6 +28,8 @@ module.exports = {
         place_name: 'Aula Utama',
         image: 'aula-utama.jpg',
         description: 'Aula utama untuk seminar dan kajian besar.',
+        facilities: 'AC, Proyektor, Papan Tulis',
+        capacity: 40,
         created_at: new Date(),
         updated_at: new Date()
       },
@@ -34,6 +38,8 @@ module.exports = {
         place_name: 'Ruang Kelas',
         image: 'ruang-kelas.jpg',
         description: 'Khusus untuk kegiatan belajar mengajar anak-anak.',
+        facilities: 'AC, Papan Tulis',
+        capacity: 20,
         created_at: new Date(),
         updated_at: new Date()
       }

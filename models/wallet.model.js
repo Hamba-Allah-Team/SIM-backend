@@ -7,10 +7,19 @@ module.exports = (sequelize, Sequelize) => {
         },
         mosque_id: {
             type: Sequelize.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'mosques', // pastikan sesuai nama model yang kamu pakai
+                key: 'mosque_id'
+            },
+            onDelete: 'CASCADE'
+        },
+        wallet_name: {
+            type: Sequelize.STRING,
             allowNull: false
         },
         wallet_type: {
-            type: Sequelize.ENUM("cash", "bank"),
+            type: Sequelize.ENUM("cash", "bank", "ewallet", "other"),
             allowNull: false
         },
         created_at: {
@@ -20,11 +29,17 @@ module.exports = (sequelize, Sequelize) => {
         updated_at: {
             type: Sequelize.DATE,
             defaultValue: Sequelize.NOW
+        },
+        deleted_at: {
+            type: Sequelize.DATE,
+            allowNull: true
         }
     }, {
         timestamps: true,
+        paranoid: true,
         createdAt: "created_at",
-        updatedAt: "updated_at"
+        updatedAt: "updated_at",
+        underscored: true
     });
 
     Wallet.associate = (models) => {

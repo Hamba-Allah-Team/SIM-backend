@@ -6,6 +6,11 @@ module.exports = function (app) {
   // User management routes
   app.get("/api/users", verifyToken, userController.getUsers);
   app.put(
+    "/api/users/change-password",
+    verifyToken,
+    userController.changePassword
+  );
+  app.put(
     "/api/users/:id",
     verifyToken,
     checkSoftDelete,
@@ -18,11 +23,6 @@ module.exports = function (app) {
     userController.softDeleteUser
   );
   app.get("/api/users/profile", verifyToken, userController.profile);
-  app.put(
-    "/api/users/change-password",
-    verifyToken,
-    userController.changePassword
-  );
   app.get(
     "/api/users/stats/admin-activity-trend",
     verifyToken,

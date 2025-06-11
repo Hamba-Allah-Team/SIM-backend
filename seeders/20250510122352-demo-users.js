@@ -105,7 +105,7 @@ module.exports = {
         password: hashedPassword,
         name: 'Admin Al-Hikmah 7',
         role: 'admin',
-        status: 'active',
+        status: 'inactive',
         password_reset_code: null,
         password_reset_expires_at: null,
         expired_at: null,
