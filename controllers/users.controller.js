@@ -218,8 +218,8 @@ exports.softDeleteUser = async (req, res) => {
       return res.status(404).send({ message: "Pengguna tidak ditemukan." });
     }
 
-    await user.update({ deleted_at: new Date() });
-
+    await user.update({ deleted_at: new Date(), status: 'inactive' });
+    
     res.status(200).send({ message: "Pengguna berhasil dihapus sementara." });
   } catch (err) {
     console.error("Error soft deleting user:", err);

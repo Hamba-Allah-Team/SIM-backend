@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node --env-file=.env index.js",
+    "start": "node index.js",
     "dev": "node --watch --trace-warnings --env-file=.env index.js",
-    "recalculate": "node scripts/recalculate-balances.js",
-    "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm run recalculate",
+    "populate:slugs": "node scripts/populate-slugs.js",
+    "db:reset": "npx sequelize-cli db:migrate:undo:all && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm run populate:slugs",
     "sequelize": "sequelize-cli",
     "test": "jest"
   },

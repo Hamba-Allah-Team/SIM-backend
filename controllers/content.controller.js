@@ -297,7 +297,6 @@ exports.getPublicContentById = async (req, res) => {
 
 exports.getPublicRecentNews = async (req, res) => {
   try {
-    // Cari masjid berdasarkan slug untuk mendapatkan ID-nya
     const mosque = await db.mosques.findOne({ where: { slug: req.params.slug } });
     if (!mosque) {
       return res.status(404).json({ message: "Masjid tidak ditemukan." });
@@ -306,23 +305,21 @@ exports.getPublicRecentNews = async (req, res) => {
     const recentNews = await Content.findAll({
       where: {
         mosque_id: mosque.mosque_id,
-        // Filter hanya untuk 'berita'
         contents_type: 'berita',
       },
-      order: [['published_date', 'DESC']], // Urutkan dari yang terbaru
-      limit: 4 // Ambil 4 berita terbaru
+      order: [['published_date', 'DESC']],
+      limit: 4
     });
 
-    // Format data agar mudah digunakan di frontend
     const formattedNews = recentNews.map(news => {
-      // Membuat excerpt (ringkasan) dari deskripsi
       const excerpt = news.content_description
         ? news.content_description.split(' ').slice(0, 20).join(' ') + '...'
         : 'Klik untuk membaca selengkapnya.';
 
       return {
         id: news.contents_id,
-        img: news.image ? `${req.protocol}://${req.get('host')}/uploads/${news.image}` : 'https://placehold.co/600x400/EBF1F4/888?text=Berita',
+        // 👈 PERBAIKAN: Backend sekarang HANYA mengirimkan path yang tersimpan di DB
+        img: news.image, // Contoh: /uploads/gambar.jpg atau gambar.jpg
         title: news.title,
         date: new Date(news.published_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
         excerpt: excerpt

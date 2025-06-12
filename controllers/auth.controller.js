@@ -5,51 +5,49 @@ const jwt = require("jsonwebtoken");
 const validator = require("validator");
 
 exports.signup = async (req, res) => {
-  const t = await db.sequelize.transaction();
+  const {
+    username,
+    email,
+    password,
+    name,
+    role,
+    status,
+    mosque_name,
+    mosque_address,
+  } = req.body;
+
+  if (!username || !email || !password || !name) {
+    return res.status(400).send({ message: "Semua kolom wajib diisi." });
+  }
+  if (!validator.isEmail(email)) {
+    return res.status(400).send({ message: "Format email tidak valid." });
+  }
+  if (password.length < 8) {
+    return res
+      .status(400)
+      .send({ message: "Kata sandi minimal harus 8 karakter." });
+  }
+  if ((!role || role === "admin") && !req.body.mosque_id && (!mosque_name || !mosque_address)) {
+    return res.status(400).send({ message: "Nama dan alamat masjid wajib diisi untuk admin baru." });
+  }
+
+  let t;
 
   try {
-    const {
-      username,
-      email,
-      password,
-      name,
-      role,
-      status,
-      mosque_name,
-      mosque_address,
-    } = req.body;
-
-    // Validasi input wajib
-    if (!username || !email || !password || !name) {
-      return res.status(400).send({ message: "Semua kolom wajib diisi." });
-    }
-
-    // Validasi format email
-    if (!validator.isEmail(email)) {
-      return res.status(400).send({ message: "Format email tidak valid." });
-    }
-
-    // Validasi panjang password (minimal 8 karakter)
-    if (password.length < 8) {
-      return res
-        .status(400)
-        .send({ message: "Kata sandi minimal harus 8 karakter." });
-    }
-
     const lowerCaseEmail = email.toLowerCase();
-
+    
     const existingUser = await User.findOne({ where: { email: lowerCaseEmail } });
     if (existingUser) {
       return res.status(409).send({ message: "Email sudah terdaftar." });
     }
 
-    // Tentukan tanggal expired
+    t = await db.sequelize.transaction();
+
     const expiredAt = new Date();
-    expiredAt.setDate(expiredAt.getDate() + 30);
+    expiredAt.setDate(expiredAt.getDate() + 30); 
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Buat user baru
     const user = await User.create(
       {
         mosque_id: null,
@@ -64,9 +62,8 @@ exports.signup = async (req, res) => {
       { transaction: t }
     );
 
-    let mosqueId = req.body.mosque_id;  
+    let mosqueId = req.body.mosque_id;
 
-    // Jika user adalah admin buat masjid baru
     if (!mosqueId && user.role === "admin") {
       const mosque = await db.mosques.create(
         {
@@ -75,16 +72,18 @@ exports.signup = async (req, res) => {
         },
         { transaction: t }
       );
-
       mosqueId = mosque.mosque_id;
       await user.update({ mosque_id: mosqueId }, { transaction: t });
     }
 
     await t.commit();
     res.status(201).send({ message: "Pendaftaran pengguna berhasil!" });
+
   } catch (error) {
-    await t.rollback();
-    res.status(500).send({ message: error.message });
+    if (t) {
+      await t.rollback();
+    }
+    res.status(500).send({ message: error.message || "Terjadi kesalahan pada server." });
   }
 };
 
