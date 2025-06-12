@@ -150,8 +150,9 @@ RAM: 4 GB
 CPU: 2
 
 Docker Container:
-
-
+- nginx_container
+- postgre_container
+- web_container
 
 Domain:
 Frontend https://simasjid.raihanproject.my.id
@@ -163,6 +164,8 @@ CI/CD: deploy and build
 
 ## Project Architecture <br>
 ![alt text](/pictures/diagram.png)
+
+![alt text](/pictures/diagram_azure.png)
 
 ## .env example <br>
 PORT=3000
