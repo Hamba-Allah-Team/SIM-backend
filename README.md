@@ -141,6 +141,25 @@ Ikuti langkah-langkah di bawah ini untuk mengatur dan menjalankan proyek di ling
 
 ---
 
+## Cloud
+
+Menggunakan VM dan Docker 
+
+Spesifikasi VM Backend:
+RAM: 4 GB
+CPU: 2
+
+Docker Container:
+
+
+
+Domain:
+Frontend https://simasjid.raihanproject.my.id
+
+Backend
+https://simasjidbackend.raihanproject.my.id
+
+CI/CD: deploy and build
 
 ## Project Architecture <br>
 ![alt text](/pictures/diagram.png)
