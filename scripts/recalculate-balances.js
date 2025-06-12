@@ -1,24 +1,46 @@
-const { wallet, sequelize } = require('../models');
+const db = require('../models');
 const { recalculateWalletBalances } = require('../utils/finance');
 
-(async () => {
+async function runRecalculation() {
+    console.log("Memulai proses perhitungan ulang semua saldo dompet...");
+    const t = await db.sequelize.transaction();
+
     try {
-        const wallets = await wallet.findAll({
+        const wallets = await db.wallet.findAll({ 
             where: { deleted_at: null },
-            attributes: ['wallet_id', 'wallet_name'],
+            attributes: ['wallet_id', 'wallet_name'], 
+            transaction: t 
         });
-
-        console.log(`🔄 Recalculating balances for ${wallets.length} wallets...\n`);
-
-        for (const wallet of wallets) {
-            console.log(`→ Wallet: ${wallet.wallet_name}`);
-            await recalculateWalletBalances(wallet.wallet_id);
+        
+        if (wallets.length === 0) {
+            console.log("Tidak ada dompet untuk dihitung. Selesai.");
+            await t.commit();
+            return;
         }
 
-        console.log('\n✅ Balance recalculation complete.');
-        await sequelize.close();
+        console.log(`Menemukan ${wallets.length} dompet. Memulai perhitungan...`);
+
+        for (let i = 0; i < wallets.length; i++) {
+            const walletId = wallets[i].wallet_id;
+            console.log(`(${i + 1}/${wallets.length}) Menghitung saldo untuk dompet ID: ${walletId}`);
+            await recalculateWalletBalances(walletId, { transaction: t });
+        }
+
+        await t.commit();
+        console.log("✅ Proses perhitungan ulang semua saldo berhasil diselesaikan.");
+
     } catch (error) {
-        console.error('❌ Error recalculating balances:', error);
-        process.exit(1);
+        await t.rollback();
+        console.error("❌ Gagal total saat menjalankan perhitungan ulang:", error);
+        throw error; // Lemparkan error agar proses seeder tahu jika terjadi kegagalan
     }
-})();
+}
+
+// Hanya jalankan jika file ini dieksekusi langsung, dan tutup koneksi setelahnya
+if (require.main === module) {
+    runRecalculation().finally(() => {
+        db.sequelize.close();
+    });
+}
+
+module.exports = { runRecalculation };
