@@ -48,7 +48,8 @@ exports.createReservation = async (req, res) => {
                 mosque_id,
                 room_id,
                 reservation_date,
-                [Op.or]: [
+                status:{ [Op.in]: ['pending', 'approved'] },
+                [Op.and]: [
                     {
                         start_time: {
                             [Op.lt] : end_time
@@ -57,11 +58,6 @@ exports.createReservation = async (req, res) => {
                     {
                         end_time: {
                             [Op.gt]: start_time
-                        }
-                    },
-                    {
-                        status: {
-                            [Op.in]: ['pending', 'approved']
                         }
                     }
                 ]
@@ -260,6 +256,32 @@ exports.updateReservation = async (req, res) => {
             return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
         }
 
+        const conflictingReservation = await Reservation.findOne({
+            where: {
+                reservation_id: { [Op.ne]: id },
+                mosque_id,
+                room_id: room_id,
+                reservation_date: reservation_date,
+                status: { [Op.in]: ['pending', 'approved'] },
+                [Op.and]: [
+                    {
+                        start_time: {
+                            [Op.lt]: end_time
+                        }
+                    },
+                    {
+                        end_time: {
+                            [Op.gt]: start_time
+                        }
+                    }
+                ]
+            }
+        });
+
+        if (conflictingReservation) {
+            return res.status(409).json({ message: "Ruangan sudah dipesan pada waktu tersebut." });
+        }
+
         await existingReservation.update({
             room_id,
             title,
@@ -405,6 +427,31 @@ exports.createPublicReservation = async (req, res) => {
         today.setHours(0, 0, 0, 0);
         if(new Date(reservation_date) < today) {
             return res.status(400).json({ message: "Tanggal reservasi tidak boleh kurang dari hari ini." });
+        }
+
+        const existingReservation = await Reservation.findOne({
+            where: {
+                mosque_id,
+                room_id,
+                reservation_date,
+                status:{ [Op.in]: ['pending', 'approved'] },
+                [Op.and]: [
+                    {
+                        start_time: {
+                            [Op.lt] : end_time
+                        }
+                    },
+                    {
+                        end_time: {
+                            [Op.gt]: start_time
+                        }
+                    }
+                ]
+            }
+        });
+
+        if (existingReservation) {
+            return res.status(409).json({ message: "Ruangan sudah dipesan pada waktu tersebut." });
         }
 
         const newReservation = await Reservation.create({
