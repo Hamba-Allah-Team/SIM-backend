@@ -60,7 +60,7 @@ exports.createActivity = async (req, res) => {
         }
         if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
             return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
-        }   
+        }
 
         const newActivity = await Activity.create({
             mosque_id: user.mosque_id, // Pastikan user memiliki mosque_id
@@ -163,32 +163,18 @@ exports.updateActivity = async (req, res) => {
             deleteImage,
         } = req.body;
 
-        if (event_name) updateData.event_name = event_name;
+        // Hanya tambahkan field ke updateData jika field tersebut ada di request
+        if (event_name !== undefined) updateData.event_name = event_name;
         if (event_description !== undefined) updateData.event_description = event_description;
-        if (start_date) updateData.start_date = start_date;
-        if (end_date) updateData.end_date = end_date;
-        if (start_time) updateData.start_time = start_time;
-        if (end_time) updateData.end_time = end_time;
-
-        const finalStartDate = start_date || activity.start_date;
-        const finalEndDate = end_date || activity.end_date;
-        const finalStartTime = start_time || activity.start_time;
-        const finalEndTime = end_time || activity.end_time;
-
-        if (finalEndDate && finalStartDate && new Date(finalEndDate) < new Date(finalStartDate)) {
-            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
-        }
-
-        if (finalEndDate && finalStartDate && new Date(finalEndDate).toISOString().split('T')[0] === new Date(finalStartDate).toISOString().split('T')[0]) {
-            if (finalEndTime && finalStartTime && finalEndTime <= finalStartTime) {
-                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
-            }
-        }
+        if (start_date !== undefined) updateData.start_date = start_date;
+        if (end_date !== undefined) updateData.end_date = end_date;
+        if (start_time !== undefined) updateData.start_time = start_time;
+        if (end_time !== undefined) updateData.end_time = end_time;
 
         // Logika untuk menangani gambar
         if (deleteImage === 'true') {
             deleteImageFile(activity.image); // Hapus file fisik
-            updateData.image = null; // Siapkan untuk update database menjadi null
+            updateData.image = null;       // Siapkan untuk update database menjadi null
         } else if (req.file) {
             deleteImageFile(activity.image); // Hapus file lama jika ada yang baru diunggah
             updateData.image = `/uploads/${req.file.filename}`; // Siapkan path baru
@@ -197,11 +183,15 @@ exports.updateActivity = async (req, res) => {
 
         await activity.update(updateData);
 
-        res.json({ message: "Activity updated successfully", activity: await activity.reload() });
+        // Mengambil kembali data yang sudah terupdate dari DB untuk dikirim sebagai respons
+        const reloadedActivity = await activity.reload();
+
+        res.json({ message: "Kegiatan berhasil diperbarui.", activity: reloadedActivity });
+
     } catch (error) {
-        console.error("Error updating activity:", error);
+        console.error("Error saat memperbarui kegiatan:", error);
         if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
-        res.status(500).json({ message: "Failed to update activity" });
+        res.status(500).json({ message: "Gagal memperbarui kegiatan" });
     }
 };
 
