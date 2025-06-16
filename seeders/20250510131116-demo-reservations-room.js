@@ -1,5 +1,7 @@
 'use strict';
 
+const { image } = require('pdfkit');
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -21,7 +23,8 @@ module.exports = {
         facilities: 'AC, Proyektor, Kursi, Meja',
         capacity: 30,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
+        image: 'default_room.png'
       },
       {
         mosque_id: 1,
@@ -31,7 +34,8 @@ module.exports = {
         facilities: 'AC, Proyektor, Papan Tulis',
         capacity: 40,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
+        image: 'default_room.png'
       },
       {
         mosque_id: 1,
@@ -41,7 +45,8 @@ module.exports = {
         facilities: 'AC, Papan Tulis',
         capacity: 20,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
+        image: 'default_room.png'
       }
     ], {});
   },
