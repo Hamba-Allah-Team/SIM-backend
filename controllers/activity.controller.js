@@ -22,14 +22,12 @@ const deleteImageFile = (filePath) => {
     }
 };
 
-// 📥 CREATE activity
 exports.createActivity = async (req, res) => {
     try {
         const userId = req.userId;
         const user = await User.findByPk(userId);
         if (!user) {
-            // Jika ada file terupload karena user tidak ditemukan, hapus file tersebut
-            if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
+            if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
             return res.status(404).json({ message: "User not found" });
         }
 
@@ -37,54 +35,46 @@ exports.createActivity = async (req, res) => {
             event_name,
             event_description,
             start_date,
-            end_date,
+            end_date, // Bisa jadi undefined
             start_time,
-            end_time
+            end_time  // Bisa jadi undefined
         } = req.body;
 
-        let imageUrl = null;
-        if (req.file) {
-            // Simpan path yang bisa diakses publik, contoh: /uploads/namafile.jpg
-            imageUrl = `/uploads/${req.file.filename}`;
-        } else {
-            // Jika gambar tidak wajib, Anda bisa membiarkannya null
-            // Jika wajib, berikan error:
-            // return res.status(400).json({ message: "Gambar kegiatan wajib diunggah." });
+        // Validasi input wajib dasar
+        if (!event_name || !start_date || !start_time) {
+            return res.status(400).json({ message: "Nama, tanggal mulai, dan waktu mulai wajib diisi." });
         }
 
-        // 👈 PERBAIKAN: Validasi waktu di backend
-        if (end_date && start_date && end_date === start_date) {
-            if (end_time && start_time && end_time <= start_time) {
-                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
-            }
-        }
-        if (end_date && start_date && new Date(end_date) < new Date(start_date)) {
+        // 👈 PERBAIKAN: Logika baru untuk menangani tanggal & waktu
+        const finalEndDate = end_date || start_date; // Jika end_date tidak ada, samakan dengan start_date
+
+        if (new Date(finalEndDate) < new Date(start_date)) {
             return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
         }
 
+        if (finalEndDate === start_date && end_time && start_time && end_time <= start_time) {
+            return res.status(400).json({ message: "Jam selesai harus setelah jam mulai jika di hari yang sama." });
+        }
+
+        let imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
         const newActivity = await Activity.create({
-            mosque_id: user.mosque_id, // Pastikan user memiliki mosque_id
+            mosque_id: user.mosque_id,
             user_id: userId,
             event_name,
             image: imageUrl,
             event_description,
             start_date,
-            end_date,
+            end_date: finalEndDate, // Gunakan tanggal akhir yang sudah pasti
             start_time,
-            end_time
+            end_time: end_time || null, // Simpan null jika kosong
         });
 
         res.status(201).json(newActivity);
     } catch (error) {
         console.error("Error creating activity:", error);
-        // Jika ada file terupload karena error lain, hapus file tersebut
-        if (req.file) deleteImageFile(path.join('uploads', req.file.filename));
-
-        // Tangani error dari multer (misal, tipe file tidak valid)
-        if (error.message && error.message.includes("Hanya file JPEG, JPG, PNG yang diizinkan!")) {
-            return res.status(400).json({ message: error.message });
-        }
-        res.status(500).json({ message: "Failed to create activity" });
+        if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
+        res.status(500).json({ message: "Gagal membuat kegiatan" });
     }
 };
 
@@ -136,7 +126,7 @@ exports.updateActivity = async (req, res) => {
         const user = await User.findByPk(userId);
         if (!user) {
             if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({ message: "User tidak ditemukan" });
         }
 
         const activity = await Activity.findOne({
@@ -148,45 +138,64 @@ exports.updateActivity = async (req, res) => {
 
         if (!activity) {
             if (req.file) deleteImageFile(`/uploads/${req.file.filename}`);
-            return res.status(404).json({ message: "Activity not found" });
+            return res.status(404).json({ message: "Kegiatan tidak ditemukan" });
         }
 
-        // 👈 PERBAIKAN: Membangun objek update secara dinamis
-        const updateData = {};
         const {
-            event_name,
-            event_description,
-            start_date,
-            end_date,
-            start_time,
-            end_time,
-            deleteImage,
+            event_name, event_description, start_date, end_date,
+            start_time, end_time, deleteImage
         } = req.body;
 
-        // Hanya tambahkan field ke updateData jika field tersebut ada di request
+        const updateData = {};
+
+        // Hanya tambahkan field jika nilainya dikirim dari frontend
         if (event_name !== undefined) updateData.event_name = event_name;
         if (event_description !== undefined) updateData.event_description = event_description;
-        if (start_date !== undefined) updateData.start_date = start_date;
-        if (end_date !== undefined) updateData.end_date = end_date;
         if (start_time !== undefined) updateData.start_time = start_time;
-        if (end_time !== undefined) updateData.end_time = end_time;
+        if (end_time !== undefined) updateData.end_time = end_time || null;
+
+        // 👈 PERBAIKAN UTAMA: Penanganan tanggal untuk menghindari masalah zona waktu
+        const handleDate = (dateString) => {
+            if (!dateString) return null;
+            // Membuat objek Date dengan menambahkan informasi waktu tengah hari untuk menghindari pergeseran
+            return new Date(`${dateString}T12:00:00`);
+        };
+
+        if (start_date) updateData.start_date = handleDate(start_date);
+        if (end_date) updateData.end_date = handleDate(end_date);
+
 
         // Logika untuk menangani gambar
         if (deleteImage === 'true') {
-            deleteImageFile(activity.image); // Hapus file fisik
-            updateData.image = null;       // Siapkan untuk update database menjadi null
+            deleteImageFile(activity.image);
+            updateData.image = null;
         } else if (req.file) {
-            deleteImageFile(activity.image); // Hapus file lama jika ada yang baru diunggah
-            updateData.image = `/uploads/${req.file.filename}`; // Siapkan path baru
+            deleteImageFile(activity.image);
+            updateData.image = `/uploads/${req.file.filename}`;
         }
-        // Jika tidak ada kondisi di atas, 'image' tidak akan ditambahkan ke 'updateData', sehingga tidak diubah.
+
+        // Validasi waktu menggunakan nilai final gabungan
+        const finalStartDate = updateData.start_date || activity.start_date;
+        let finalEndDate = updateData.end_date === undefined ? activity.end_date : updateData.end_date;
+        if (!finalEndDate) finalEndDate = finalStartDate;
+
+        const finalStartTime = updateData.start_time || activity.start_time;
+        const finalEndTime = updateData.end_time === undefined ? activity.end_time : updateData.end_time;
+
+        if (finalEndDate && finalStartDate && new Date(finalEndDate) < new Date(finalStartDate)) {
+            return res.status(400).json({ message: "Tanggal selesai tidak boleh sebelum tanggal mulai." });
+        }
+
+        if (finalEndDate && finalStartDate && new Date(finalEndDate).toISOString().split('T')[0] === new Date(finalStartDate).toISOString().split('T')[0]) {
+            if (finalEndTime && finalStartTime && finalEndTime <= finalStartTime) {
+                return res.status(400).json({ message: "Jam selesai harus setelah jam mulai pada hari yang sama." });
+            }
+        }
 
         await activity.update(updateData);
 
-        // Mengambil kembali data yang sudah terupdate dari DB untuk dikirim sebagai respons
         const reloadedActivity = await activity.reload();
-
-        res.json({ message: "Kegiatan berhasil diperbarui.", activity: reloadedActivity });
+        res.json({ message: "Kegiatan berhasil diperbarui", activity: reloadedActivity });
 
     } catch (error) {
         console.error("Error saat memperbarui kegiatan:", error);
