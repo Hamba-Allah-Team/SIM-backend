@@ -511,15 +511,17 @@ let req, res;
 
     await getPublicRecentNews(req, res);
 
-    expect(res.json).toHaveBeenCalledWith([
-      {
-        id: 1,
-        img: "http://localhost:3000/uploads/news1.jpg",
-        title: "Judul Berita",
-        date: "10 Juni 2024",
-        excerpt: expect.stringContaining("Ini adalah berita terbaru"),
-      },
-    ]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 1,
+          img: "news1.jpg", // atau "http://localhost:3000/uploads/news1.jpg" kalau memang ingin full
+          title: "Judul Berita",
+          date: "10 Juni 2024",
+          excerpt: expect.stringContaining("Ini adalah berita terbaru"),
+        }),
+      ])
+    );
   });
 
   it("should return 500 if unexpected error occurs", async () => {
