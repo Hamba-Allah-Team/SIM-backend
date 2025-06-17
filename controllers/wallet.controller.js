@@ -91,59 +91,59 @@ exports.getWalletById = async (req, res) => {
 };
 
 // ✏️ UPDATE wallet
-exports.updateWallet = async (req, res) => {
-    try {
-        const walletId = req.params.id;
-        const { mosque_id, wallet_type, wallet_name } = req.body;
+// exports.updateWallet = async (req, res) => {
+//     try {
+//         const walletId = req.params.id;
+//         const { mosque_id, wallet_type, wallet_name } = req.body;
 
-        const wallet = await Wallet.findByPk(walletId);
-        if (!wallet) return res.status(404).json({ message: "Wallet not found" });
+//         const wallet = await Wallet.findByPk(walletId);
+//         if (!wallet) return res.status(404).json({ message: "Wallet not found" });
 
-        const newMosqueId = mosque_id ?? wallet.mosque_id;
+//         const newMosqueId = mosque_id ?? wallet.mosque_id;
 
-        // Cek wallet lain milik masjid ini (kecuali wallet ini sendiri)
-        const otherWallets = await Wallet.findAll({
-            where: {
-                mosque_id: newMosqueId,
-                wallet_id: { [db.Sequelize.Op.ne]: walletId }
-            }
-        });
+//         // Cek wallet lain milik masjid ini (kecuali wallet ini sendiri)
+//         const otherWallets = await Wallet.findAll({
+//             where: {
+//                 mosque_id: newMosqueId,
+//                 wallet_id: { [db.Sequelize.Op.ne]: walletId }
+//             }
+//         });
 
-        // Validasi jika ingin ubah jadi wallet_type 'cash'
-        if (wallet_type === 'cash' && wallet.wallet_type !== 'cash') {
-            const hasCash = otherWallets.some(w => w.wallet_type === 'cash');
-            if (hasCash) {
-                return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
-            }
-        }
+//         // Validasi jika ingin ubah jadi wallet_type 'cash'
+//         if (wallet_type === 'cash' && wallet.wallet_type !== 'cash') {
+//             const hasCash = otherWallets.some(w => w.wallet_type === 'cash');
+//             if (hasCash) {
+//                 return res.status(400).json({ message: "A 'cash' wallet already exists for this mosque." });
+//             }
+//         }
 
-        // Validasi nama unik (jika ingin diubah)
-        if (wallet_name && wallet_name !== wallet.wallet_name) {
-            const duplicateName = await Wallet.findOne({
-                where: {
-                    mosque_id: newMosqueId,
-                    wallet_name,
-                    wallet_id: { [db.Sequelize.Op.ne]: walletId }
-                }
-            });
-            if (duplicateName) {
-                return res.status(400).json({ message: "A wallet with this name already exists for this mosque." });
-            }
-        }
+//         // Validasi nama unik (jika ingin diubah)
+//         if (wallet_name && wallet_name !== wallet.wallet_name) {
+//             const duplicateName = await Wallet.findOne({
+//                 where: {
+//                     mosque_id: newMosqueId,
+//                     wallet_name,
+//                     wallet_id: { [db.Sequelize.Op.ne]: walletId }
+//                 }
+//             });
+//             if (duplicateName) {
+//                 return res.status(400).json({ message: "A wallet with this name already exists for this mosque." });
+//             }
+//         }
 
-        // Update data
-        wallet.mosque_id = newMosqueId;
-        wallet.wallet_type = wallet_type ?? wallet.wallet_type;
-        wallet.wallet_name = wallet_name ?? wallet.wallet_name;
+//         // Update data
+//         wallet.mosque_id = newMosqueId;
+//         wallet.wallet_type = wallet_type ?? wallet.wallet_type;
+//         wallet.wallet_name = wallet_name ?? wallet.wallet_name;
 
-        await wallet.save();
-        res.json(wallet);
+//         await wallet.save();
+//         res.json(wallet);
 
-    } catch (error) {
-        console.error("Error updating wallet:", error);
-        res.status(500).json({ error: error.message });
-    }
-};
+//     } catch (error) {
+//         console.error("Error updating wallet:", error);
+//         res.status(500).json({ error: error.message });
+//     }
+// };
 
 // 🗑️ DELETE wallet
 exports.deleteWallet = async (req, res) => {
