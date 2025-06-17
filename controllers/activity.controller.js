@@ -22,6 +22,8 @@ const deleteImageFile = (filePath) => {
     }
 };
 
+exports.deleteImageFile = deleteImageFile; // Ekspor fungsi untuk digunakan di tempat lain
+
 exports.createActivity = async (req, res) => {
     try {
         const userId = req.userId;
@@ -37,7 +39,7 @@ exports.createActivity = async (req, res) => {
             start_date,
             end_date, // Bisa jadi undefined
             start_time,
-            end_time  // Bisa jadi undefined
+            end_time // Bisa jadi undefined
         } = req.body;
 
         // Validasi input wajib dasar
